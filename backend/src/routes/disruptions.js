@@ -29,7 +29,7 @@ async function sendDisruption(req, res, next, type) {
       externalUserId: booking.externalUserId,
       flightNumber: booking.flight.flightNumber,
       reason,
-      source: "demo-travel-platform-admin"
+      source: "demo-booking-portal"
     };
 
     if (type === "flight-delay") {

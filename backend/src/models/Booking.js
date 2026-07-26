@@ -14,6 +14,14 @@ const bookingSchema = new mongoose.Schema(
     transport: { type: Object, default: null },
     meetings: { type: Array, default: [] },
     preferences: { type: Object, required: true },
+    travelPolicy: { type: Object, default: { maxRecoveryCostDelta: 500 } },
+    cardBenefits: {
+      type: Object,
+      default: {
+        product: "American Express Platinum",
+        disruptionProtection: true
+      }
+    },
     payment: { type: Object, required: true },
     atreImport: {
       status: { type: String, enum: ["pending", "sent", "failed"], default: "pending" },
@@ -30,7 +38,12 @@ const bookingSchema = new mongoose.Schema(
         error: { type: String, default: null },
         sentAt: { type: Date, default: Date.now }
       }
-    ]
+    ],
+    recoveryConfirmation: {
+      selectedPlan: { type: Object, default: null },
+      confirmedAt: { type: Date, default: null },
+      source: { type: String, default: null }
+    }
   },
   { timestamps: true }
 );

@@ -65,6 +65,38 @@ export function listInventory(type) {
   return request(`/api/inventory${query}`);
 }
 
+export function searchFlights(payload) {
+  return request("/api/search/flights", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function searchHotels(payload) {
+  return request("/api/search/hotels", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function searchTransport(payload) {
+  return request("/api/search/transport", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function listProviderModes() {
+  return request("/api/settings/provider-modes");
+}
+
+export function updateProviderMode(type, mode) {
+  return request(`/api/settings/provider-modes/${type}`, {
+    method: "PUT",
+    body: JSON.stringify({ mode })
+  });
+}
+
 export function listAdminInventory() {
   return request("/api/inventory/admin");
 }

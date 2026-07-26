@@ -9,6 +9,8 @@ import atreSyncRoutes from "./routes/atreSync.js";
 import bookingRoutes from "./routes/bookings.js";
 import disruptionRoutes from "./routes/disruptions.js";
 import inventoryRoutes from "./routes/inventory.js";
+import searchRoutes from "./routes/search.js";
+import settingsRoutes from "./routes/settings.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
@@ -26,6 +28,8 @@ app.get("/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/atre", atreSyncRoutes);
 app.use("/api/inventory", inventoryRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/settings", settingsRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/disruptions", disruptionRoutes);
 

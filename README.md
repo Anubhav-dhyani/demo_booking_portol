@@ -17,6 +17,16 @@ Backend `.env`:
 PORT=5000
 MONGODB_URI=mongodb://127.0.0.1:27017/demo-travel-booking
 ATRE_API_URL=http://localhost:5003
+IGNAV_API_URL=https://ignav.com
+IGNAV_API_KEY=replace-with-your-ignav-key
+GOOGLE_PLACES_API_KEY=replace-with-your-google-places-key
+GEOAPIFY_API_URL=https://api.geoapify.com
+GEOAPIFY_API_KEY=replace-with-your-geoapify-key
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=replace-with-smtp-user
+SMTP_PASS=replace-with-smtp-password
+EMAIL_FROM=Demo Travel <no-reply@example.com>
 AUTH_TOKEN_SECRET=change-this-local-secret
 ADMIN_NAME=Travel Admin
 ADMIN_EMAIL=admin@example.com
@@ -53,3 +63,6 @@ The booking platform calls:
 - `POST {ATRE_API_URL}/api/disruptions/flight-delay`
 - `POST {ATRE_API_URL}/api/disruptions/flight-cancellation`
 - `POST /api/atre/bookings/sync`
+- `POST /api/atre/recovery-options`
+- `POST /api/atre/recovery/confirm`
+- `POST /api/atre/notifications/email`

@@ -2,24 +2,9 @@ import express from "express";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { Booking } from "../models/Booking.js";
 import { postToAtre } from "../services/atreClient.js";
+import { buildAtreBookingPayload } from "../utils/atrePayload.js";
 
 const router = express.Router();
-
-function buildBookingPayload(booking) {
-  return {
-    externalBookingId: booking.externalBookingId,
-    externalUserId: booking.externalUserId,
-    source: booking.source,
-    user: booking.user,
-    itinerary: booking.itinerary,
-    flight: booking.flight,
-    hotel: booking.hotel,
-    transport: booking.transport,
-    meetings: booking.meetings,
-    preferences: booking.preferences,
-    payment: booking.payment
-  };
-}
 
 router.get("/", requireAdmin, async (_req, res, next) => {
   try {
@@ -70,11 +55,16 @@ router.post("/", requireAuth, async (req, res, next) => {
         email: req.auth.email || req.body.user?.email,
         phone: req.auth.phone || req.body.user?.phone
       },
-      source: "demo-travel-platform",
+      source: "demo-booking-portal",
+      travelPolicy: req.body.travelPolicy || { maxRecoveryCostDelta: 500 },
+      cardBenefits: req.body.cardBenefits || {
+        product: "American Express Platinum",
+        disruptionProtection: true
+      },
       atreImport: { status: "pending" }
     });
 
-    const payload = buildBookingPayload(booking);
+    const payload = buildAtreBookingPayload(booking);
 
     try {
       const atreResponse = await postToAtre("/api/import-booking", payload);
@@ -113,7 +103,7 @@ router.post("/:id/retry-atre-import", requireAuth, async (req, res, next) => {
     }
 
     try {
-      const atreResponse = await postToAtre("/api/import-booking", buildBookingPayload(booking));
+      const atreResponse = await postToAtre("/api/import-booking", buildAtreBookingPayload(booking));
       booking.atreImport = {
         status: "sent",
         response: atreResponse,

@@ -27,16 +27,20 @@ import {
   deleteInventoryItem,
   getBooking,
   getSessionUser,
+  listProviderModes,
   listMyBookings,
   listAdminInventory,
   listBookings,
-  listInventory,
   loginUser,
   registerUser,
   retryAtreImport,
   saveSession,
+  searchFlights,
+  searchHotels,
+  searchTransport,
   sendFlightCancellation,
   sendFlightDelay,
+  updateProviderMode,
   updateInventoryItem
 } from "./api.js";
 
@@ -122,7 +126,13 @@ function useBookingDraft() {
     return saved ? JSON.parse(saved) : { itinerary: initialTrip };
   });
   useEffect(() => localStorage.setItem("bookingDraft", JSON.stringify(draft)), [draft]);
-  return [draft, setDraft];
+
+  function updateDraft(nextDraft) {
+    localStorage.setItem("bookingDraft", JSON.stringify(nextDraft));
+    setDraft(nextDraft);
+  }
+
+  return [draft, updateDraft];
 }
 
 function PageShell({ children }) {
@@ -224,6 +234,7 @@ function HomePage() {
   const [draft, setDraft] = useBookingDraft();
   const [form, setForm] = useState(draft.itinerary || initialTrip);
   const [activeSection, setActiveSection] = useState("flight");
+  const [error, setError] = useState("");
   const categories = [
     ["flight", Plane, "Flights"],
     ["hotel", Building2, "Hotels"],
@@ -235,6 +246,15 @@ function HomePage() {
 
   function submit(event) {
     event.preventDefault();
+    setError("");
+
+    const missing = missingSearchFields(activeSection, form);
+
+    if (missing.length > 0) {
+      setError(`Please enter ${missing.join(", ")}.`);
+      return;
+    }
+
     setDraft({ itinerary: form, flight: null, hotel: null, transport: null });
     navigate(["flight", "hotel", "transport"].includes(activeSection) ? `/select/${activeSection}` : "/select/flight");
   }
@@ -273,6 +293,7 @@ function HomePage() {
             </div>
 
             <SearchSectionFields section={activeSection} form={form} setForm={setForm} />
+            {error ? <Alert tone="danger">{error}</Alert> : null}
 
             <button className="absolute -bottom-8 left-1/2 inline-flex w-64 -translate-x-1/2 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-blue-700 px-6 py-4 text-2xl font-bold text-white shadow-panel" type="submit">
               <Search size={24} />
@@ -295,8 +316,27 @@ function SelectionPage({ type }) {
   const next = type === "flight" ? "/select/hotel" : type === "hotel" ? "/select/transport" : "/checkout";
 
   useEffect(() => {
-    listInventory(type).then(setItems).catch((err) => setError(err.message)).finally(() => setLoading(false));
-  }, [type]);
+    setLoading(true);
+    setError("");
+
+    if (type === "flight") {
+      searchFlights({
+        origin: draft.itinerary.origin,
+        destination: draft.itinerary.destination,
+        departure_date: draft.itinerary.departureDate
+      })
+        .then((data) => setItems(data.fares || []))
+        .catch((err) => setError(err.message))
+        .finally(() => setLoading(false));
+      return;
+    }
+
+    const searcher = type === "hotel" ? searchHotels : searchTransport;
+    searcher(draft.itinerary)
+      .then((data) => setItems(data.items || []))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [draft.itinerary.departureDate, draft.itinerary.destination, draft.itinerary.origin, type]);
 
   function choose(item) {
     setDraft({ ...draft, [type]: normalizeItem(item, draft.itinerary) });
@@ -312,14 +352,14 @@ function SelectionPage({ type }) {
     <PageShell>
       <div className="mx-auto max-w-7xl px-4 py-8">
         <FlowHeader active={type} />
-        <PageTitle icon={meta.icon} title={`Choose ${meta.label.toLowerCase()}`} subtitle="Options are loaded from MongoDB inventory created by the admin." />
+        <PageTitle icon={meta.icon} title={`Choose ${meta.label.toLowerCase()}`} subtitle="Results use admin-selected provider mode, then fall back to database inventory when configured." />
         <div className="mb-5 flex justify-end">
           <button className="btn-secondary" type="button" onClick={skip}>Skip {meta.label}</button>
         </div>
         {loading ? <p>Loading {meta.label.toLowerCase()}...</p> : null}
         {error ? <Alert tone="danger">{error}</Alert> : null}
         {!loading && items.length === 0 ? (
-          <EmptyState title={`No ${meta.label.toLowerCase()} available`} message="Ask an admin to add inventory, or skip this section." />
+          <EmptyState title={`No ${meta.label.toLowerCase()} available`} message={type === "flight" ? "No fares came back for this route/date, or the provider is unavailable." : "Ask an admin to add inventory, or skip this section."} />
         ) : null}
         <div className="grid gap-4 md:grid-cols-3">
           {items.map((item) => (
@@ -359,13 +399,14 @@ function CheckoutPage() {
     const payload = {
       externalBookingId: bookingId(),
       externalUserId: sessionUser.externalUserId,
-      source: "demo-travel-platform",
+      source: "demo-booking-portal",
       user: {
         name: sessionUser.name,
         email: sessionUser.email,
         phone: sessionUser.phone
       },
       itinerary: {
+        title: `${draft.itinerary.origin} to ${draft.itinerary.destination} trip`,
         origin: draft.itinerary.origin,
         destination: draft.itinerary.destination,
         departureDate: draft.itinerary.departureDate,
@@ -383,11 +424,19 @@ function CheckoutPage() {
         }
       ],
       preferences: {
+        seat: "Window",
         preferredCabin: draft.itinerary.cabin,
         maxDelayMinutes: 120,
         preferSameAirline: false,
         allowHotelChanges: true,
         allowTransportChanges: true
+      },
+      travelPolicy: {
+        maxRecoveryCostDelta: 500
+      },
+      cardBenefits: {
+        product: "American Express Platinum",
+        disruptionProtection: true
       },
       payment
     };
@@ -593,6 +642,7 @@ function AdminBookingsPage() {
 function AdminInventoryPage() {
   const sessionUser = useSession();
   const [items, setItems] = useState([]);
+  const [providerModes, setProviderModes] = useState([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [form, setForm] = useState(blankInventoryForm("flight"));
@@ -606,6 +656,7 @@ function AdminInventoryPage() {
 
   function refreshInventory() {
     listAdminInventory().then(setItems).catch((err) => setError(err.message));
+    listProviderModes().then(setProviderModes).catch((err) => setError(err.message));
   }
 
   function changeType(type) {
@@ -636,11 +687,47 @@ function AdminInventoryPage() {
     refreshInventory();
   }
 
+  async function changeProviderMode(type, mode) {
+    setMessage("");
+    setError("");
+    try {
+      const updated = await updateProviderMode(type, mode);
+      setProviderModes((current) => current.map((setting) => setting.type === updated.type ? updated : setting));
+      setMessage(`${typeMeta[type].label} search mode updated.`);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <PageShell>
       <div className="mx-auto max-w-7xl px-4 py-8">
         <PageTitle icon={Plus} title="Admin inventory" subtitle="Add flights, hotels, and cabs that travelers can book." />
-        <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
+        <Panel title="Search source" icon={Search}>
+          <div className="grid gap-3 md:grid-cols-3">
+            {["flight", "hotel", "transport"].map((type) => {
+              const setting = providerModes.find((mode) => mode.type === type);
+              const mode = setting?.mode || (setting?.useProvider ? "ignav" : "manual");
+              const Icon = typeMeta[type].icon;
+
+              return (
+                <label key={type} className="grid gap-3 rounded border border-slate-200 p-4">
+                  <span className="flex items-center gap-3 font-semibold">
+                    <Icon className="text-amex" size={20} />
+                    {typeMeta[type].label}
+                  </span>
+                  <select className="input" value={mode} onChange={(event) => changeProviderMode(type, event.target.value)}>
+                    <option value="manual">Manual DB</option>
+                    {type === "flight" ? <option value="ignav">IGNAV API</option> : null}
+                    {type === "hotel" ? <option value="google">Google Places API</option> : null}
+                    {type === "hotel" ? <option value="geoapify">Geoapify API</option> : null}
+                  </select>
+                </label>
+              );
+            })}
+          </div>
+        </Panel>
+        <div className="mt-6 grid gap-6 lg:grid-cols-[420px_1fr]">
           <Panel title="Add inventory" icon={Plus}>
             <form className="grid gap-4" onSubmit={submit}>
               <label className="grid gap-2 text-sm font-medium">
@@ -793,8 +880,8 @@ function InventoryFields({ form, setForm }) {
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Airline" value={form.details.airline} onChange={(airline) => setDetails({ airline })} />
             <Field label="Flight number" value={form.details.flightNumber} onChange={(flightNumber) => setDetails({ flightNumber })} />
-            <Field label="Origin" value={form.details.origin} onChange={(origin) => setDetails({ origin })} />
-            <Field label="Destination" value={form.details.destination} onChange={(destination) => setDetails({ destination })} />
+            <Field label="Origin airport code" value={form.details.origin} onChange={(origin) => setDetails({ origin: origin.toUpperCase() })} />
+            <Field label="Destination airport code" value={form.details.destination} onChange={(destination) => setDetails({ destination: destination.toUpperCase() })} />
             <Field label="Departure time" type="datetime-local" value={form.details.departureTime} onChange={(departureTime) => setDetails({ departureTime })} />
             <Field label="Arrival time" type="datetime-local" value={form.details.arrivalTime} onChange={(arrivalTime) => setDetails({ arrivalTime })} />
             <Field label="Cabin" value={form.details.cabin} onChange={(cabin) => setDetails({ cabin })} />
@@ -899,6 +986,28 @@ function sectionSubtitle(section) {
   return "Search flights by route, date, travellers, and cabin";
 }
 
+function missingSearchFields(section, form) {
+  const fieldsBySection = {
+    flight: [
+      ["origin", "origin"],
+      ["destination", "destination"],
+      ["departureDate", "departure date"]
+    ],
+    hotel: [
+      ["destination", "city or hotel"],
+      ["departureDate", "check-in date"],
+      ["returnDate", "check-out date"]
+    ],
+    transport: [
+      ["origin", "pickup"],
+      ["destination", "dropoff"],
+      ["departureDate", "pickup date"]
+    ]
+  };
+
+  return (fieldsBySection[section] || []).filter(([key]) => !String(form[key] || "").trim()).map(([, label]) => label);
+}
+
 function SearchSectionFields({ section, form, setForm }) {
   if (section === "hotel") {
     return (
@@ -934,8 +1043,8 @@ function SearchSectionFields({ section, form, setForm }) {
 
   return (
     <div className="grid overflow-hidden rounded-lg border border-slate-200 md:grid-cols-[1fr_1fr_0.8fr_0.8fr_0.9fr]">
-      <BigField label="From" value={form.origin} onChange={(origin) => setForm({ ...form, origin })} />
-      <BigField label="To" value={form.destination} onChange={(destination) => setForm({ ...form, destination })} />
+      <BigField label="From city or code" value={form.origin} onChange={(origin) => setForm({ ...form, origin })} />
+      <BigField label="To city or code" value={form.destination} onChange={(destination) => setForm({ ...form, destination })} />
       <BigField label="Departure" type="date" value={form.departureDate} onChange={(departureDate) => setForm({ ...form, departureDate })} />
       <BigField label="Return" type="date" value={form.returnDate} onChange={(returnDate) => setForm({ ...form, returnDate })} />
       <BigField label="Cabin Class" value={form.cabin} onChange={(cabin) => setForm({ ...form, cabin })} />
