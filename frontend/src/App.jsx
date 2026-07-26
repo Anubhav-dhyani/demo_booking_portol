@@ -9,12 +9,26 @@ import {
   Check,
   CircleDollarSign,
   CreditCard,
+  LogIn,
+  LogOut,
   Plane,
   Search,
   ShieldCheck,
   UserRound
 } from "lucide-react";
-import { createBooking, getBooking, listBookings, sendFlightCancellation, sendFlightDelay } from "./api.js";
+import {
+  clearSession,
+  createBooking,
+  getBooking,
+  getSessionUser,
+  listBookings,
+  loginAdmin,
+  loginUser,
+  registerUser,
+  saveSession,
+  sendFlightCancellation,
+  sendFlightDelay
+} from "./api.js";
 import { flights, hotels, transports } from "./data/travelOptions.js";
 
 const initialTrip = {
@@ -28,7 +42,6 @@ const initialTrip = {
 const money = (price) => `$${price.amount.toLocaleString()} ${price.currency}`;
 const formatTime = (value) => new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 const bookingId = () => `bk_${Math.floor(1000 + Math.random() * 9000)}`;
-const userId = () => `user_${Math.floor(1000 + Math.random() * 9000)}`;
 
 function goTo(path, replace = false) {
   if (replace) {
@@ -54,6 +67,22 @@ function usePath() {
 
 function useNavigate() {
   return (path, options = {}) => goTo(path, options.replace);
+}
+
+function useSession() {
+  const [user, setUser] = useState(() => getSessionUser());
+
+  useEffect(() => {
+    const updateUser = () => setUser(getSessionUser());
+    window.addEventListener("authchange", updateUser);
+    window.addEventListener("storage", updateUser);
+    return () => {
+      window.removeEventListener("authchange", updateUser);
+      window.removeEventListener("storage", updateUser);
+    };
+  }, []);
+
+  return user;
 }
 
 function Link({ to, className, children }) {
@@ -93,6 +122,13 @@ function useBookingDraft() {
 }
 
 function PageShell({ children }) {
+  const user = useSession();
+
+  function logout() {
+    clearSession();
+    goTo("/");
+  }
+
   return (
     <div className="min-h-screen bg-cloud text-ink">
       <header className="border-b border-slate-200 bg-white">
@@ -106,11 +142,88 @@ function PageShell({ children }) {
           <nav className="flex items-center gap-2 text-sm font-medium text-slate-600">
             <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/">Book</Link>
             <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/admin/bookings">Admin</Link>
+            {user ? (
+              <>
+                <span className="hidden rounded bg-slate-100 px-3 py-2 text-slate-700 md:inline">{user.name}</span>
+                <button className="rounded px-3 py-2 hover:bg-slate-100" type="button" onClick={logout}>
+                  <LogOut size={17} />
+                </button>
+              </>
+            ) : (
+              <>
+                <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/login">Login</Link>
+                <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/register">Register</Link>
+              </>
+            )}
           </nav>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
     </div>
+  );
+}
+
+function AuthPage({ mode }) {
+  const navigate = useNavigate();
+  const isRegister = mode === "register";
+  const isAdmin = mode === "admin";
+  const [form, setForm] = useState({
+    name: "Anubhav Dhyani",
+    email: isAdmin ? "admin@example.com" : "anubhav@example.com",
+    phone: "+15555550123",
+    password: isAdmin ? "admin123" : "password123"
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const session = isAdmin
+        ? await loginAdmin({ email: form.email, password: form.password })
+        : isRegister
+          ? await registerUser(form)
+          : await loginUser({ email: form.email, password: form.password });
+      saveSession(session);
+      navigate(isAdmin ? "/admin/bookings" : "/");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <PageShell>
+      <section className="mx-auto max-w-md rounded border border-slate-200 bg-white p-6 shadow-panel">
+        <div className="mb-5 flex items-center gap-2">
+          <LogIn className="text-amex" />
+          <h1 className="text-2xl font-semibold">{isAdmin ? "Admin Login" : isRegister ? "Create Account" : "Traveler Login"}</h1>
+        </div>
+        <form className="grid gap-4" onSubmit={submit}>
+          {isRegister ? <Field label="Name" value={form.name} onChange={(name) => setForm({ ...form, name })} /> : null}
+          <Field label="Email" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
+          {isRegister ? <Field label="Phone" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} /> : null}
+          <Field label="Password" type="password" value={form.password} onChange={(password) => setForm({ ...form, password })} />
+          {error ? <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+          <button className="btn-primary" disabled={loading} type="submit">
+            <LogIn size={18} />
+            {loading ? "Signing in..." : isRegister ? "Register" : "Login"}
+          </button>
+        </form>
+        {!isAdmin ? (
+          <div className="mt-4 flex justify-between text-sm">
+            <Link className="font-medium text-amex" to={isRegister ? "/login" : "/register"}>
+              {isRegister ? "Use existing account" : "Create traveler account"}
+            </Link>
+            <Link className="font-medium text-amex" to="/admin/login">Admin login</Link>
+          </div>
+        ) : null}
+      </section>
+    </PageShell>
   );
 }
 
@@ -303,8 +416,13 @@ function TaxiSelectionPage() {
 
 function CheckoutPage() {
   const navigate = useNavigate();
+  const sessionUser = useSession();
   const [draft] = useBookingDraft();
-  const [traveler, setTraveler] = useState({ name: "Anubhav Dhyani", email: "anubhav@example.com", phone: "+15555550123" });
+  const [traveler, setTraveler] = useState(() => ({
+    name: sessionUser?.name || "Anubhav Dhyani",
+    email: sessionUser?.email || "anubhav@example.com",
+    phone: sessionUser?.phone || "+15555550123"
+  }));
   const [payment, setPayment] = useState({ cardBrand: "American Express", last4: "1005" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -312,6 +430,7 @@ function CheckoutPage() {
   const total = useMemo(() => [draft.flight, draft.hotel, draft.transport].reduce((sum, item) => sum + (item?.price?.amount || 0), 0), [draft]);
 
   if (!draft.transport) return <Navigate to="/taxis" replace />;
+  if (!sessionUser || sessionUser.role !== "user") return <Navigate to="/login" replace />;
 
   async function submit(event) {
     event.preventDefault();
@@ -320,7 +439,7 @@ function CheckoutPage() {
 
     const payload = {
       externalBookingId: bookingId(),
-      externalUserId: userId(),
+      externalUserId: sessionUser.externalUserId,
       source: "demo-travel-platform",
       user: traveler,
       itinerary: {
@@ -434,17 +553,24 @@ function ConfirmationPage({ id }) {
 }
 
 function AdminBookingsPage() {
+  const sessionUser = useSession();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    listBookings().then(setBookings).finally(() => setLoading(false));
-  }, []);
+    if (!sessionUser || sessionUser.role !== "admin") return;
+
+    listBookings().then(setBookings).catch((err) => setError(err.message)).finally(() => setLoading(false));
+  }, [sessionUser]);
+
+  if (!sessionUser || sessionUser.role !== "admin") return <Navigate to="/admin/login" replace />;
 
   return (
     <PageShell>
       <PageTitle icon={BriefcaseBusiness} title="Admin bookings" subtitle="Bookings created on this demo travel platform." />
       {loading ? <p>Loading bookings...</p> : null}
+      {error ? <p className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
       <div className="grid gap-4">
         {bookings.map((booking) => (
           <article key={booking._id} className="rounded border border-slate-200 bg-white p-5 shadow-sm">
@@ -472,6 +598,7 @@ function AdminBookingsPage() {
 }
 
 function AdminDisruptionPage({ id }) {
+  const sessionUser = useSession();
   const [booking, setBooking] = useState(null);
   const [modal, setModal] = useState(null);
   const [delayMinutes, setDelayMinutes] = useState(180);
@@ -481,8 +608,12 @@ function AdminDisruptionPage({ id }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!sessionUser || sessionUser.role !== "admin") return;
+
     getBooking(id).then(setBooking).catch((err) => setError(err.message));
-  }, [id]);
+  }, [id, sessionUser]);
+
+  if (!sessionUser || sessionUser.role !== "admin") return <Navigate to="/admin/login" replace />;
 
   async function delayFlight() {
     setMessage("");
@@ -619,6 +750,9 @@ export default function App() {
   const disruptionMatch = path.match(/^\/admin\/disruptions\/([^/]+)$/);
 
   if (path === "/") return <HomePage />;
+  if (path === "/login") return <AuthPage mode="login" />;
+  if (path === "/register") return <AuthPage mode="register" />;
+  if (path === "/admin/login") return <AuthPage mode="admin" />;
   if (path === "/flights") return <FlightResultsPage />;
   if (path === "/hotels") return <HotelSelectionPage />;
   if (path === "/taxis") return <TaxiSelectionPage />;

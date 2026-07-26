@@ -1,4 +1,5 @@
 import express from "express";
+import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { Booking } from "../models/Booking.js";
 import { postToAtre } from "../services/atreClient.js";
 
@@ -20,7 +21,7 @@ function buildBookingPayload(booking) {
   };
 }
 
-router.get("/", async (_req, res, next) => {
+router.get("/", requireAdmin, async (_req, res, next) => {
   try {
     const bookings = await Booking.find().sort({ createdAt: -1 });
     res.json(bookings);
@@ -29,12 +30,16 @@ router.get("/", async (_req, res, next) => {
   }
 });
 
-router.get("/:id", async (req, res, next) => {
+router.get("/:id", requireAuth, async (req, res, next) => {
   try {
     const booking = await Booking.findById(req.params.id);
 
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (req.auth.role !== "admin" && booking.ownerUserId !== req.auth.id) {
+      return res.status(403).json({ message: "You do not have access to this booking" });
     }
 
     res.json(booking);
@@ -43,10 +48,19 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
-router.post("/", async (req, res, next) => {
+router.post("/", requireAuth, async (req, res, next) => {
   try {
     const booking = await Booking.create({
       ...req.body,
+      externalUserId: req.auth.externalUserId,
+      ownerUserId: req.auth.id,
+      createdByRole: req.auth.role,
+      user: {
+        ...req.body.user,
+        name: req.auth.name || req.body.user?.name,
+        email: req.auth.email || req.body.user?.email,
+        phone: req.auth.phone || req.body.user?.phone
+      },
       source: "demo-travel-platform",
       atreImport: { status: "pending" }
     });

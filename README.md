@@ -17,6 +17,10 @@ Backend `.env`:
 PORT=5000
 MONGODB_URI=mongodb://127.0.0.1:27017/demo-travel-booking
 ATRE_API_URL=http://localhost:4000
+AUTH_TOKEN_SECRET=change-this-local-secret
+ADMIN_NAME=Travel Admin
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=admin123
 ```
 
 Frontend `.env`:

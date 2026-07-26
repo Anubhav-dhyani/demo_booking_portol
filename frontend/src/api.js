@@ -1,8 +1,13 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+function authHeaders() {
+  const token = localStorage.getItem("authToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...(options.headers || {}) },
     ...options
   });
 
@@ -13,6 +18,44 @@ async function request(path, options = {}) {
   }
 
   return data;
+}
+
+export function saveSession(session) {
+  localStorage.setItem("authToken", session.token);
+  localStorage.setItem("authUser", JSON.stringify(session.user));
+  window.dispatchEvent(new Event("authchange"));
+}
+
+export function clearSession() {
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("authUser");
+  window.dispatchEvent(new Event("authchange"));
+}
+
+export function getSessionUser() {
+  const saved = localStorage.getItem("authUser");
+  return saved ? JSON.parse(saved) : null;
+}
+
+export function registerUser(payload) {
+  return request("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function loginUser(payload) {
+  return request("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function loginAdmin(payload) {
+  return request("/api/auth/admin/login", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }
 
 export function createBooking(payload) {

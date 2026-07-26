@@ -2,6 +2,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import { connectDb } from "./config/db.js";
+import authRoutes from "./routes/auth.js";
 import bookingRoutes from "./routes/bookings.js";
 import disruptionRoutes from "./routes/disruptions.js";
 
@@ -17,6 +18,7 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "demo-travel-booking-backend" });
 });
 
+app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/disruptions", disruptionRoutes);
 

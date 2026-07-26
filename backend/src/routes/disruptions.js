@@ -1,4 +1,5 @@
 import express from "express";
+import { requireAdmin } from "../middleware/auth.js";
 import { Booking } from "../models/Booking.js";
 import { postToAtre } from "../services/atreClient.js";
 
@@ -66,7 +67,7 @@ async function sendDisruption(req, res, next, type) {
   }
 }
 
-router.post("/flight-delay", (req, res, next) => sendDisruption(req, res, next, "flight-delay"));
-router.post("/flight-cancellation", (req, res, next) => sendDisruption(req, res, next, "flight-cancellation"));
+router.post("/flight-delay", requireAdmin, (req, res, next) => sendDisruption(req, res, next, "flight-delay"));
+router.post("/flight-cancellation", requireAdmin, (req, res, next) => sendDisruption(req, res, next, "flight-cancellation"));
 
 export default router;

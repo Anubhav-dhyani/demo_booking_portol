@@ -4,6 +4,8 @@ const bookingSchema = new mongoose.Schema(
   {
     externalBookingId: { type: String, required: true, unique: true },
     externalUserId: { type: String, required: true },
+    ownerUserId: { type: String, required: true },
+    createdByRole: { type: String, enum: ["user", "admin"], default: "user" },
     source: { type: String, default: "demo-travel-platform" },
     user: { type: Object, required: true },
     itinerary: { type: Object, required: true },
