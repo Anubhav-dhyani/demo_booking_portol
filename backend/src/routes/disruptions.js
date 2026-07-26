@@ -20,6 +20,10 @@ async function sendDisruption(req, res, next, type) {
       return res.status(404).json({ message: "Booking not found" });
     }
 
+    if (!booking.flight?.flightNumber) {
+      return res.status(400).json({ message: "This booking does not include a flight" });
+    }
+
     const payload = {
       externalBookingId: booking.externalBookingId,
       externalUserId: booking.externalUserId,

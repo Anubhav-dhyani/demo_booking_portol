@@ -51,17 +51,39 @@ export function loginUser(payload) {
   });
 }
 
-export function loginAdmin(payload) {
-  return request("/api/auth/admin/login", {
+export function createBooking(payload) {
+  return request("/api/bookings", {
     method: "POST",
     body: JSON.stringify(payload)
   });
 }
 
-export function createBooking(payload) {
-  return request("/api/bookings", {
+export function listInventory(type) {
+  const query = type ? `?type=${type}` : "";
+  return request(`/api/inventory${query}`);
+}
+
+export function listAdminInventory() {
+  return request("/api/inventory/admin");
+}
+
+export function createInventoryItem(payload) {
+  return request("/api/inventory", {
     method: "POST",
     body: JSON.stringify(payload)
+  });
+}
+
+export function updateInventoryItem(id, payload) {
+  return request(`/api/inventory/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteInventoryItem(id) {
+  return request(`/api/inventory/${id}`, {
+    method: "DELETE"
   });
 }
 

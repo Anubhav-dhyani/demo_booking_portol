@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
+  BedDouble,
   BriefcaseBusiness,
   Building2,
+  Bus,
   CalendarDays,
   Car,
   Check,
@@ -12,56 +14,65 @@ import {
   LogIn,
   LogOut,
   Plane,
+  Plus,
   Search,
   ShieldCheck,
+  Trash2,
   UserRound
 } from "lucide-react";
 import {
   clearSession,
   createBooking,
+  createInventoryItem,
+  deleteInventoryItem,
   getBooking,
   getSessionUser,
+  listAdminInventory,
   listBookings,
-  loginAdmin,
+  listInventory,
   loginUser,
   registerUser,
   saveSession,
   sendFlightCancellation,
-  sendFlightDelay
+  sendFlightDelay,
+  updateInventoryItem
 } from "./api.js";
-import { flights, hotels, transports } from "./data/travelOptions.js";
 
 const initialTrip = {
-  origin: "JFK",
-  destination: "SFO",
-  departureDate: "2026-08-15",
-  returnDate: "2026-08-17",
-  tripPurpose: "business"
+  origin: "",
+  destination: "",
+  departureDate: "",
+  returnDate: "",
+  tripPurpose: "business",
+  cabin: ""
 };
 
-const money = (price) => `$${price.amount.toLocaleString()} ${price.currency}`;
-const formatTime = (value) => new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+const typeMeta = {
+  flight: { label: "Flights", icon: Plane },
+  hotel: { label: "Hotels", icon: BedDouble },
+  transport: { label: "Cabs", icon: Car }
+};
+
+const money = (price) => `$${Number(price?.amount || 0).toLocaleString()} ${price?.currency || "USD"}`;
 const bookingId = () => `bk_${Math.floor(1000 + Math.random() * 9000)}`;
+const formatTime = (value) => {
+  if (!value) return "Not set";
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+};
 
 function goTo(path, replace = false) {
-  if (replace) {
-    window.history.replaceState({}, "", path);
-  } else {
-    window.history.pushState({}, "", path);
-  }
-
+  if (replace) window.history.replaceState({}, "", path);
+  else window.history.pushState({}, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
 function usePath() {
   const [path, setPath] = useState(window.location.pathname);
-
   useEffect(() => {
     const updatePath = () => setPath(window.location.pathname);
     window.addEventListener("popstate", updatePath);
     return () => window.removeEventListener("popstate", updatePath);
   }, []);
-
   return path;
 }
 
@@ -71,7 +82,6 @@ function useNavigate() {
 
 function useSession() {
   const [user, setUser] = useState(() => getSessionUser());
-
   useEffect(() => {
     const updateUser = () => setUser(getSessionUser());
     window.addEventListener("authchange", updateUser);
@@ -81,7 +91,6 @@ function useSession() {
       window.removeEventListener("storage", updateUser);
     };
   }, []);
-
   return user;
 }
 
@@ -101,10 +110,7 @@ function Link({ to, className, children }) {
 }
 
 function Navigate({ to, replace = false }) {
-  useEffect(() => {
-    goTo(to, replace);
-  }, [replace, to]);
-
+  useEffect(() => goTo(to, replace), [replace, to]);
   return null;
 }
 
@@ -113,11 +119,7 @@ function useBookingDraft() {
     const saved = localStorage.getItem("bookingDraft");
     return saved ? JSON.parse(saved) : { itinerary: initialTrip };
   });
-
-  useEffect(() => {
-    localStorage.setItem("bookingDraft", JSON.stringify(draft));
-  }, [draft]);
-
+  useEffect(() => localStorage.setItem("bookingDraft", JSON.stringify(draft)), [draft]);
   return [draft, setDraft];
 }
 
@@ -130,24 +132,21 @@ function PageShell({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-cloud text-ink">
+    <div className="min-h-screen bg-[#eef4fb] text-ink">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
           <Link to="/" className="flex items-center gap-3 font-semibold">
-            <span className="flex h-10 w-10 items-center justify-center rounded bg-amex text-white">
-              <Plane size={20} />
-            </span>
+            <span className="flex h-10 w-10 items-center justify-center rounded bg-amex text-white"><Plane size={20} /></span>
             Demo Travel
           </Link>
-          <nav className="flex items-center gap-2 text-sm font-medium text-slate-600">
+          <nav className="flex flex-wrap items-center justify-end gap-2 text-sm font-medium text-slate-600">
             <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/">Book</Link>
-            <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/admin/bookings">Admin</Link>
+            {user?.role === "admin" ? <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/admin/bookings">Bookings</Link> : null}
+            {user?.role === "admin" ? <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/admin/inventory">Inventory</Link> : null}
             {user ? (
               <>
                 <span className="hidden rounded bg-slate-100 px-3 py-2 text-slate-700 md:inline">{user.name}</span>
-                <button className="rounded px-3 py-2 hover:bg-slate-100" type="button" onClick={logout}>
-                  <LogOut size={17} />
-                </button>
+                <button className="rounded px-3 py-2 hover:bg-slate-100" type="button" onClick={logout}><LogOut size={17} /></button>
               </>
             ) : (
               <>
@@ -158,7 +157,7 @@ function PageShell({ children }) {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+      <main>{children}</main>
     </div>
   );
 }
@@ -166,12 +165,11 @@ function PageShell({ children }) {
 function AuthPage({ mode }) {
   const navigate = useNavigate();
   const isRegister = mode === "register";
-  const isAdmin = mode === "admin";
   const [form, setForm] = useState({
     name: "Anubhav Dhyani",
-    email: isAdmin ? "admin@example.com" : "anubhav@example.com",
+    email: "anubhav@example.com",
     phone: "+15555550123",
-    password: isAdmin ? "admin123" : "password123"
+    password: "password123"
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -180,15 +178,12 @@ function AuthPage({ mode }) {
     event.preventDefault();
     setError("");
     setLoading(true);
-
     try {
-      const session = isAdmin
-        ? await loginAdmin({ email: form.email, password: form.password })
-        : isRegister
-          ? await registerUser(form)
-          : await loginUser({ email: form.email, password: form.password });
+      const session = isRegister
+        ? await registerUser(form)
+        : await loginUser({ email: form.email, password: form.password });
       saveSession(session);
-      navigate(isAdmin ? "/admin/bookings" : "/");
+      navigate(session.user.role === "admin" ? "/admin/bookings" : "/");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -198,46 +193,26 @@ function AuthPage({ mode }) {
 
   return (
     <PageShell>
-      <section className="mx-auto max-w-md rounded border border-slate-200 bg-white p-6 shadow-panel">
-        <div className="mb-5 flex items-center gap-2">
-          <LogIn className="text-amex" />
-          <h1 className="text-2xl font-semibold">{isAdmin ? "Admin Login" : isRegister ? "Create Account" : "Traveler Login"}</h1>
-        </div>
-        <form className="grid gap-4" onSubmit={submit}>
-          {isRegister ? <Field label="Name" value={form.name} onChange={(name) => setForm({ ...form, name })} /> : null}
-          <Field label="Email" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
-          {isRegister ? <Field label="Phone" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} /> : null}
-          <Field label="Password" type="password" value={form.password} onChange={(password) => setForm({ ...form, password })} />
-          {error ? <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-          <button className="btn-primary" disabled={loading} type="submit">
-            <LogIn size={18} />
-            {loading ? "Signing in..." : isRegister ? "Register" : "Login"}
-          </button>
-        </form>
-        {!isAdmin ? (
-          <div className="mt-4 flex justify-between text-sm">
-            <Link className="font-medium text-amex" to={isRegister ? "/login" : "/register"}>
-              {isRegister ? "Use existing account" : "Create traveler account"}
-            </Link>
-            <Link className="font-medium text-amex" to="/admin/login">Admin login</Link>
+      <div className="mx-auto max-w-7xl px-4 py-10">
+        <section className="mx-auto max-w-md rounded border border-slate-200 bg-white p-6 shadow-panel">
+          <div className="mb-5 flex items-center gap-2">
+            <LogIn className="text-amex" />
+            <h1 className="text-2xl font-semibold">{isRegister ? "Create Account" : "Login"}</h1>
           </div>
-        ) : null}
-      </section>
+          <form className="grid gap-4" onSubmit={submit}>
+            {isRegister ? <Field label="Name" value={form.name} onChange={(name) => setForm({ ...form, name })} /> : null}
+            <Field label="Email" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
+            {isRegister ? <Field label="Phone" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} /> : null}
+            <Field label="Password" type="password" value={form.password} onChange={(password) => setForm({ ...form, password })} />
+            {error ? <Alert tone="danger">{error}</Alert> : null}
+            <button className="btn-primary" disabled={loading} type="submit"><LogIn size={18} />{loading ? "Signing in..." : isRegister ? "Register" : "Login"}</button>
+          </form>
+          <div className="mt-4 text-sm">
+            <Link className="font-medium text-amex" to={isRegister ? "/login" : "/register"}>{isRegister ? "Use existing account" : "Create traveler account"}</Link>
+          </div>
+        </section>
+      </div>
     </PageShell>
-  );
-}
-
-function Stepper({ active }) {
-  const steps = ["Search", "Flight", "Hotel", "Taxi", "Checkout", "Confirm"];
-
-  return (
-    <div className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-6">
-      {steps.map((step, index) => (
-        <div key={step} className={`rounded border px-3 py-2 text-sm ${index <= active ? "border-amex bg-white text-amex" : "border-slate-200 bg-white text-slate-500"}`}>
-          {step}
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -245,170 +220,118 @@ function HomePage() {
   const navigate = useNavigate();
   const [draft, setDraft] = useBookingDraft();
   const [form, setForm] = useState(draft.itinerary || initialTrip);
+  const [activeSection, setActiveSection] = useState("flight");
+  const categories = [
+    ["flight", Plane, "Flights"],
+    ["hotel", Building2, "Hotels"],
+    ["transport", Car, "Cabs"]
+  ];
+  const activeMeta = categories.find(([key]) => key === activeSection);
+  const ActiveIcon = activeMeta?.[1] || Plane;
+  const activeLabel = activeMeta?.[2] || "Flights";
 
   function submit(event) {
     event.preventDefault();
-    setDraft({ itinerary: form });
-    navigate("/flights");
+    setDraft({ itinerary: form, flight: null, hotel: null, transport: null });
+    navigate(["flight", "hotel", "transport"].includes(activeSection) ? `/select/${activeSection}` : "/select/flight");
   }
 
   return (
     <PageShell>
-      <Stepper active={0} />
-      <section className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-        <div>
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-amex">External booking website</p>
-          <h1 className="max-w-3xl text-4xl font-semibold leading-tight md:text-5xl">Book a protected business trip from search to confirmation.</h1>
-          <p className="mt-5 max-w-2xl text-lg text-slate-600">This demo platform books flights, hotels, and taxis, then imports completed booking data into the configured Amex ATRE endpoint.</p>
-        </div>
-        <form onSubmit={submit} className="rounded border border-slate-200 bg-white p-5 shadow-panel">
-          <div className="mb-5 flex items-center gap-2">
-            <Search className="text-amex" />
-            <h2 className="text-xl font-semibold">Search Trip</h2>
+      <section className="relative min-h-[calc(100vh-73px)] bg-[linear-gradient(rgba(12,18,32,0.48),rgba(12,18,32,0.58)),url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1800&q=80')] bg-cover bg-center px-4 py-12">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-6 max-w-2xl text-white">
+            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.16em]">External booking website</p>
+            <h1 className="text-4xl font-semibold leading-tight md:text-5xl">Book only what your trip needs.</h1>
           </div>
-          <div className="grid gap-4">
-            <Field label="Origin" value={form.origin} onChange={(origin) => setForm({ ...form, origin })} />
-            <Field label="Destination" value={form.destination} onChange={(destination) => setForm({ ...form, destination })} />
-            <Field label="Departure date" type="date" value={form.departureDate} onChange={(departureDate) => setForm({ ...form, departureDate })} />
-            <Field label="Return date" type="date" value={form.returnDate} onChange={(returnDate) => setForm({ ...form, returnDate })} />
-            <label className="grid gap-2 text-sm font-medium">
-              Trip purpose
-              <select className="input" value={form.tripPurpose} onChange={(event) => setForm({ ...form, tripPurpose: event.target.value })}>
-                <option value="business">Business</option>
-                <option value="conference">Conference</option>
-                <option value="client visit">Client visit</option>
-              </select>
-            </label>
-            <button className="btn-primary" type="submit">
-              <Search size={18} />
-              Search Flights
+
+          <form onSubmit={submit} className="relative rounded-lg bg-white p-5 shadow-panel">
+            <div className="-mt-14 mb-6 grid grid-cols-3 gap-2 rounded-lg bg-white p-3 shadow-panel">
+              {categories.map(([key, Icon, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveSection(key)}
+                  className={`relative grid place-items-center gap-2 rounded p-3 text-center text-sm font-semibold transition ${activeSection === key ? "bg-blue-50 text-amex" : "text-slate-600 hover:bg-slate-50"}`}
+                >
+                  <Icon size={30} />
+                  {label}
+                  {activeSection === key ? <span className="absolute inset-x-5 -bottom-3 h-1 rounded-full bg-amex" /> : null}
+                </button>
+              ))}
+            </div>
+
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm font-semibold">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-amex"><ActiveIcon size={18} /></span>
+                <span>{activeLabel}</span>
+              </div>
+              <span className="text-slate-600">{sectionSubtitle(activeSection)}</span>
+            </div>
+
+            <SearchSectionFields section={activeSection} form={form} setForm={setForm} />
+
+            <button className="absolute -bottom-8 left-1/2 inline-flex w-64 -translate-x-1/2 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-blue-700 px-6 py-4 text-2xl font-bold text-white shadow-panel" type="submit">
+              <Search size={24} />
+              SEARCH
             </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </section>
     </PageShell>
   );
 }
 
-function Field({ label, value, onChange, type = "text" }) {
-  return (
-    <label className="grid gap-2 text-sm font-medium">
-      {label}
-      <input className="input" type={type} value={value} onChange={(event) => onChange(event.target.value)} />
-    </label>
-  );
-}
+function SelectionPage({ type }) {
+  const navigate = useNavigate();
+  const [draft, setDraft] = useBookingDraft();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const meta = typeMeta[type];
+  const next = type === "flight" ? "/select/hotel" : type === "hotel" ? "/select/transport" : "/checkout";
 
-function SelectableCard({ title, subtitle, details, price, icon: Icon, selected, onSelect, actionLabel = "Select" }) {
+  useEffect(() => {
+    listInventory(type).then(setItems).catch((err) => setError(err.message)).finally(() => setLoading(false));
+  }, [type]);
+
+  function choose(item) {
+    setDraft({ ...draft, [type]: normalizeItem(item, draft.itinerary) });
+    navigate(next);
+  }
+
+  function skip() {
+    setDraft({ ...draft, [type]: null });
+    navigate(next);
+  }
+
   return (
-    <article className={`rounded border bg-white p-5 shadow-sm ${selected ? "border-amex ring-2 ring-amex/20" : "border-slate-200"}`}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-slate-100 text-amex">
-            <Icon size={21} />
-          </span>
-          <div>
-            <h3 className="font-semibold">{title}</h3>
-            <p className="text-sm text-slate-600">{subtitle}</p>
-          </div>
+    <PageShell>
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <FlowHeader active={type} />
+        <PageTitle icon={meta.icon} title={`Choose ${meta.label.toLowerCase()}`} subtitle="Options are loaded from MongoDB inventory created by the admin." />
+        <div className="mb-5 flex justify-end">
+          <button className="btn-secondary" type="button" onClick={skip}>Skip {meta.label}</button>
         </div>
-        <p className="font-semibold">{money(price)}</p>
-      </div>
-      <div className="mt-4 grid gap-2 text-sm text-slate-600">{details.map((detail) => <p key={detail}>{detail}</p>)}</div>
-      <button onClick={onSelect} className={selected ? "btn-secondary mt-5" : "btn-primary mt-5"} type="button">
-        {selected ? <Check size={18} /> : null}
-        {selected ? "Selected" : actionLabel}
-      </button>
-    </article>
-  );
-}
-
-function FlightResultsPage() {
-  const navigate = useNavigate();
-  const [draft, setDraft] = useBookingDraft();
-
-  if (!draft.itinerary) return <Navigate to="/" replace />;
-
-  return (
-    <PageShell>
-      <Stepper active={1} />
-      <PageTitle icon={Plane} title="Choose a flight" subtitle={`${draft.itinerary.origin} to ${draft.itinerary.destination} on ${draft.itinerary.departureDate}`} />
-      <div className="grid gap-4">
-        {flights.map((flight) => (
-          <SelectableCard
-            key={flight.flightNumber}
-            icon={Plane}
-            title={`${flight.airline} ${flight.flightNumber}`}
-            subtitle={`${flight.cabin} cabin`}
-            price={flight.price}
-            selected={draft.flight?.flightNumber === flight.flightNumber}
-            details={[`${flight.origin} to ${flight.destination}`, `${formatTime(flight.departureTime)} to ${formatTime(flight.arrivalTime)}`]}
-            onSelect={() => {
-              setDraft({ ...draft, flight: { ...flight, origin: draft.itinerary.origin, destination: draft.itinerary.destination } });
-              navigate("/hotels");
-            }}
-          />
-        ))}
-      </div>
-    </PageShell>
-  );
-}
-
-function HotelSelectionPage() {
-  const navigate = useNavigate();
-  const [draft, setDraft] = useBookingDraft();
-  if (!draft.flight) return <Navigate to="/flights" replace />;
-
-  return (
-    <PageShell>
-      <Stepper active={2} />
-      <PageTitle icon={Building2} title="Choose a hotel" subtitle="Hotels are aligned to the selected trip dates." />
-      <div className="grid gap-4 md:grid-cols-3">
-        {hotels.map((hotel) => (
-          <SelectableCard
-            key={hotel.confirmationCode}
-            icon={Building2}
-            title={hotel.hotelName}
-            subtitle={hotel.city}
-            price={hotel.price}
-            selected={draft.hotel?.confirmationCode === hotel.confirmationCode}
-            details={[`${hotel.checkIn} to ${hotel.checkOut}`, `Confirmation ${hotel.confirmationCode}`]}
-            onSelect={() => {
-              setDraft({ ...draft, hotel });
-              navigate("/taxis");
-            }}
-          />
-        ))}
-      </div>
-    </PageShell>
-  );
-}
-
-function TaxiSelectionPage() {
-  const navigate = useNavigate();
-  const [draft, setDraft] = useBookingDraft();
-  if (!draft.hotel) return <Navigate to="/hotels" replace />;
-
-  return (
-    <PageShell>
-      <Stepper active={3} />
-      <PageTitle icon={Car} title="Choose airport transport" subtitle="Taxi and rideshare options for arrival at SFO." />
-      <div className="grid gap-4 md:grid-cols-3">
-        {transports.map((transport) => (
-          <SelectableCard
-            key={transport.confirmationCode}
-            icon={Car}
-            title={transport.type}
-            subtitle={`${transport.pickupLocation} to hotel`}
-            price={transport.price}
-            selected={draft.transport?.confirmationCode === transport.confirmationCode}
-            details={[transport.dropoffLocation, formatTime(transport.pickupTime)]}
-            onSelect={() => {
-              setDraft({ ...draft, transport: { ...transport, dropoffLocation: draft.hotel.hotelName } });
-              navigate("/checkout");
-            }}
-          />
-        ))}
+        {loading ? <p>Loading {meta.label.toLowerCase()}...</p> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+        {!loading && items.length === 0 ? (
+          <EmptyState title={`No ${meta.label.toLowerCase()} available`} message="Ask an admin to add inventory, or skip this section." />
+        ) : null}
+        <div className="grid gap-4 md:grid-cols-3">
+          {items.map((item) => (
+            <SelectableCard
+              key={item._id}
+              icon={meta.icon}
+              title={item.title}
+              subtitle={item.subtitle || type}
+              price={item.price}
+              selected={draft[type]?._inventoryId === item._id}
+              details={describeInventory(item)}
+              onSelect={() => choose(item)}
+            />
+          ))}
+        </div>
       </div>
     </PageShell>
   );
@@ -418,30 +341,27 @@ function CheckoutPage() {
   const navigate = useNavigate();
   const sessionUser = useSession();
   const [draft] = useBookingDraft();
-  const [traveler, setTraveler] = useState(() => ({
-    name: sessionUser?.name || "Anubhav Dhyani",
-    email: sessionUser?.email || "anubhav@example.com",
-    phone: sessionUser?.phone || "+15555550123"
-  }));
   const [payment, setPayment] = useState({ cardBrand: "American Express", last4: "1005" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const selected = [draft.flight, draft.hotel, draft.transport].filter(Boolean);
+  const total = useMemo(() => selected.reduce((sum, item) => sum + Number(item.price?.amount || 0), 0), [selected]);
 
-  const total = useMemo(() => [draft.flight, draft.hotel, draft.transport].reduce((sum, item) => sum + (item?.price?.amount || 0), 0), [draft]);
-
-  if (!draft.transport) return <Navigate to="/taxis" replace />;
   if (!sessionUser || sessionUser.role !== "user") return <Navigate to="/login" replace />;
 
   async function submit(event) {
     event.preventDefault();
     setLoading(true);
     setError("");
-
     const payload = {
       externalBookingId: bookingId(),
       externalUserId: sessionUser.externalUserId,
       source: "demo-travel-platform",
-      user: traveler,
+      user: {
+        name: sessionUser.name,
+        email: sessionUser.email,
+        phone: sessionUser.phone
+      },
       itinerary: {
         origin: draft.itinerary.origin,
         destination: draft.itinerary.destination,
@@ -454,13 +374,13 @@ function CheckoutPage() {
       meetings: [
         {
           title: "Client strategy meeting",
-          location: "Downtown San Francisco",
+          location: draft.itinerary.destination,
           startTime: "2026-08-16T09:00:00-07:00",
           endTime: "2026-08-16T10:00:00-07:00"
         }
       ],
       preferences: {
-        preferredCabin: draft.flight.cabin,
+        preferredCabin: draft.itinerary.cabin,
         maxDelayMinutes: 120,
         preferSameAirline: false,
         allowHotelChanges: true,
@@ -482,72 +402,66 @@ function CheckoutPage() {
 
   return (
     <PageShell>
-      <Stepper active={4} />
-      <PageTitle icon={CreditCard} title="Checkout" subtitle="Confirm traveler details and payment." />
-      <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="grid gap-5">
-          <Panel title="Traveler" icon={UserRound}>
-            <div className="grid gap-4 md:grid-cols-3">
-              <Field label="Name" value={traveler.name} onChange={(name) => setTraveler({ ...traveler, name })} />
-              <Field label="Email" value={traveler.email} onChange={(email) => setTraveler({ ...traveler, email })} />
-              <Field label="Phone" value={traveler.phone} onChange={(phone) => setTraveler({ ...traveler, phone })} />
-            </div>
-          </Panel>
-          <Panel title="Payment" icon={CircleDollarSign}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Card brand" value={payment.cardBrand} onChange={(cardBrand) => setPayment({ ...payment, cardBrand })} />
-              <Field label="Last 4" value={payment.last4} onChange={(last4) => setPayment({ ...payment, last4 })} />
-            </div>
-          </Panel>
-          {error ? <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-        </div>
-        <Panel title="Trip summary" icon={ShieldCheck}>
-          <SummaryItem label="Flight" value={`${draft.flight.airline} ${draft.flight.flightNumber}`} price={draft.flight.price} />
-          <SummaryItem label="Hotel" value={draft.hotel.hotelName} price={draft.hotel.price} />
-          <SummaryItem label="Taxi" value={draft.transport.type} price={draft.transport.price} />
-          <div className="mt-4 border-t pt-4">
-            <div className="flex justify-between text-lg font-semibold">
-              <span>Total</span>
-              <span>${total.toLocaleString()} USD</span>
-            </div>
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <FlowHeader active="checkout" />
+        <PageTitle icon={CreditCard} title="Checkout" subtitle="Confirm the selected trip services and payment." />
+        <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[1fr_360px]">
+          <div className="grid gap-5">
+            <Panel title="Traveler" icon={UserRound}>
+              <div className="grid gap-2 text-sm text-slate-700">
+                <p><strong>Name:</strong> {sessionUser.name}</p>
+                <p><strong>Email:</strong> {sessionUser.email}</p>
+                <p><strong>Phone:</strong> {sessionUser.phone}</p>
+              </div>
+            </Panel>
+            <Panel title="Payment" icon={CircleDollarSign}>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Card brand" value={payment.cardBrand} onChange={(cardBrand) => setPayment({ ...payment, cardBrand })} />
+                <Field label="Last 4" value={payment.last4} onChange={(last4) => setPayment({ ...payment, last4 })} />
+              </div>
+            </Panel>
+            {error ? <Alert tone="danger">{error}</Alert> : null}
           </div>
-          <button className="btn-primary mt-5 w-full" disabled={loading} type="submit">
-            <CreditCard size={18} />
-            {loading ? "Confirming..." : "Confirm Payment"}
-          </button>
-        </Panel>
-      </form>
+          <Panel title="Trip summary" icon={ShieldCheck}>
+            {selected.length === 0 ? <p className="text-sm text-slate-600">No paid service selected. You can still create a demo trip shell.</p> : null}
+            {draft.flight ? <SummaryItem label="Flight" value={`${draft.flight.airline} ${draft.flight.flightNumber}`} price={draft.flight.price} /> : null}
+            {draft.hotel ? <SummaryItem label="Hotel" value={draft.hotel.hotelName} price={draft.hotel.price} /> : null}
+            {draft.transport ? <SummaryItem label="Cab" value={draft.transport.type} price={draft.transport.price} /> : null}
+            <div className="mt-4 border-t pt-4">
+              <div className="flex justify-between text-lg font-semibold"><span>Total</span><span>${total.toLocaleString()} USD</span></div>
+            </div>
+            <button className="btn-primary mt-5 w-full" disabled={loading} type="submit"><CreditCard size={18} />{loading ? "Confirming..." : "Confirm Payment"}</button>
+          </Panel>
+        </form>
+      </div>
     </PageShell>
   );
 }
 
 function ConfirmationPage({ id }) {
   const [booking, setBooking] = useState(null);
-
   useEffect(() => {
     getBooking(id).then(setBooking).catch(() => setBooking(false));
   }, [id]);
 
   return (
     <PageShell>
-      <Stepper active={5} />
-      <section className="rounded border border-slate-200 bg-white p-8 text-center shadow-panel">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-mint text-white">
-          <ShieldCheck size={32} />
-        </div>
-        <h1 className="text-3xl font-semibold">Your trip has been booked and protected by Amex ATRE.</h1>
-        {booking ? (
-          <div className="mx-auto mt-6 max-w-2xl rounded bg-slate-50 p-4 text-left text-sm text-slate-700">
-            <p><strong>Booking:</strong> {booking.externalBookingId}</p>
-            <p><strong>Flight:</strong> {booking.flight.airline} {booking.flight.flightNumber}</p>
-            <p><strong>ATRE import:</strong> {booking.atreImport.status}</p>
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <section className="rounded border border-slate-200 bg-white p-8 text-center shadow-panel">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-mint text-white"><ShieldCheck size={32} /></div>
+          <h1 className="text-3xl font-semibold">Your trip has been booked and protected by Amex ATRE.</h1>
+          {booking ? (
+            <div className="mx-auto mt-6 max-w-2xl rounded bg-slate-50 p-4 text-left text-sm text-slate-700">
+              <p><strong>Booking:</strong> {booking.externalBookingId}</p>
+              <p><strong>ATRE import:</strong> {booking.atreImport.status}</p>
+            </div>
+          ) : null}
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link className="btn-secondary" to="/">Book Another Trip</Link>
+            <Link className="btn-primary" to="/admin/bookings">Open Admin</Link>
           </div>
-        ) : null}
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Link className="btn-secondary" to="/">Book Another Trip</Link>
-          <Link className="btn-primary" to="/admin/bookings">Open Admin</Link>
-        </div>
-      </section>
+        </section>
+      </div>
     </PageShell>
   );
 }
@@ -560,38 +474,137 @@ function AdminBookingsPage() {
 
   useEffect(() => {
     if (!sessionUser || sessionUser.role !== "admin") return;
-
     listBookings().then(setBookings).catch((err) => setError(err.message)).finally(() => setLoading(false));
   }, [sessionUser]);
 
-  if (!sessionUser || sessionUser.role !== "admin") return <Navigate to="/admin/login" replace />;
+  if (!sessionUser || sessionUser.role !== "admin") return <Navigate to="/login" replace />;
 
   return (
     <PageShell>
-      <PageTitle icon={BriefcaseBusiness} title="Admin bookings" subtitle="Bookings created on this demo travel platform." />
-      {loading ? <p>Loading bookings...</p> : null}
-      {error ? <p className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-      <div className="grid gap-4">
-        {bookings.map((booking) => (
-          <article key={booking._id} className="rounded border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-              <div>
-                <h2 className="font-semibold">{booking.externalBookingId}</h2>
-                <p className="text-sm text-slate-600">{booking.user.name} · {booking.flight.airline} {booking.flight.flightNumber} · {booking.itinerary.origin} to {booking.itinerary.destination}</p>
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <PageTitle icon={BriefcaseBusiness} title="Admin bookings" subtitle="Bookings created on this demo travel platform." />
+          <Link className="btn-primary" to="/admin/inventory"><Plus size={18} />Manage Inventory</Link>
+        </div>
+        {loading ? <p>Loading bookings...</p> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+        <div className="grid gap-4">
+          {bookings.map((booking) => (
+            <article key={booking._id} className="rounded border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                <div>
+                  <h2 className="font-semibold">{booking.externalBookingId}</h2>
+                  <p className="text-sm text-slate-600">{booking.user.name} · {booking.itinerary.origin} to {booking.itinerary.destination}</p>
+                  <p className="mt-1 text-sm text-slate-500">{booking.flight ? `Flight ${booking.flight.flightNumber}` : "No flight"} · {booking.hotel ? booking.hotel.hotelName : "No hotel"} · {booking.transport ? booking.transport.type : "No cab"}</p>
+                </div>
+                {booking.flight ? (
+                  <Link className="btn-primary" to={`/admin/disruptions/${booking._id}`}><AlertTriangle size={18} />Simulate Disruption</Link>
+                ) : (
+                  <span className="rounded bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-500">No flight to disrupt</span>
+                )}
               </div>
-              <Link className="btn-primary" to={`/admin/disruptions/${booking._id}`}>
-                <AlertTriangle size={18} />
-                Simulate Disruption
-              </Link>
+            </article>
+          ))}
+          {!loading && bookings.length === 0 ? <EmptyState title="No bookings yet" message="Create a traveler booking first." /> : null}
+        </div>
+      </div>
+    </PageShell>
+  );
+}
+
+function AdminInventoryPage() {
+  const sessionUser = useSession();
+  const [items, setItems] = useState([]);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [form, setForm] = useState(blankInventoryForm("flight"));
+
+  useEffect(() => {
+    if (!sessionUser || sessionUser.role !== "admin") return;
+    refreshInventory();
+  }, [sessionUser]);
+
+  if (!sessionUser || sessionUser.role !== "admin") return <Navigate to="/login" replace />;
+
+  function refreshInventory() {
+    listAdminInventory().then(setItems).catch((err) => setError(err.message));
+  }
+
+  function changeType(type) {
+    setForm(blankInventoryForm(type));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setMessage("");
+    setError("");
+    try {
+      await createInventoryItem(formToInventory(form));
+      setMessage("Inventory item added.");
+      setForm(blankInventoryForm(form.type));
+      refreshInventory();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function toggleActive(item) {
+    await updateInventoryItem(item._id, { active: !item.active });
+    refreshInventory();
+  }
+
+  async function removeItem(item) {
+    await deleteInventoryItem(item._id);
+    refreshInventory();
+  }
+
+  return (
+    <PageShell>
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <PageTitle icon={Plus} title="Admin inventory" subtitle="Add flights, hotels, and cabs that travelers can book." />
+        <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
+          <Panel title="Add inventory" icon={Plus}>
+            <form className="grid gap-4" onSubmit={submit}>
+              <label className="grid gap-2 text-sm font-medium">
+                Section
+                <select className="input" value={form.type} onChange={(event) => changeType(event.target.value)}>
+                  <option value="flight">Flight</option>
+                  <option value="hotel">Hotel</option>
+                  <option value="transport">Cab</option>
+                </select>
+              </label>
+              <InventoryFields form={form} setForm={setForm} />
+              {message ? <Alert tone="success">{message}</Alert> : null}
+              {error ? <Alert tone="danger">{error}</Alert> : null}
+              <button className="btn-primary" type="submit"><Plus size={18} />Add Item</button>
+            </form>
+          </Panel>
+          <Panel title="Available inventory" icon={BriefcaseBusiness}>
+            <div className="grid gap-3">
+              {items.map((item) => {
+                const Icon = typeMeta[item.type].icon;
+                return (
+                  <article key={item._id} className="rounded border border-slate-200 p-4">
+                    <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+                      <div className="flex gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded bg-slate-100 text-amex"><Icon size={20} /></span>
+                        <div>
+                          <h3 className="font-semibold">{item.title}</h3>
+                          <p className="text-sm text-slate-600">{item.subtitle} · {money(item.price)} · {item.active ? "Active" : "Hidden"}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button className="btn-secondary" type="button" onClick={() => toggleActive(item)}>{item.active ? "Hide" : "Show"}</button>
+                        <button className="btn-danger" type="button" onClick={() => removeItem(item)}><Trash2 size={16} /></button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+              {items.length === 0 ? <EmptyState title="No inventory yet" message="Add your first flight, hotel, or cab." /> : null}
             </div>
-          </article>
-        ))}
-        {!loading && bookings.length === 0 ? (
-          <div className="rounded border border-slate-200 bg-white p-8 text-center">
-            <p className="font-medium">No bookings yet.</p>
-            <Link className="btn-primary mt-4" to="/">Create a Booking</Link>
-          </div>
-        ) : null}
+          </Panel>
+        </div>
       </div>
     </PageShell>
   );
@@ -609,11 +622,10 @@ function AdminDisruptionPage({ id }) {
 
   useEffect(() => {
     if (!sessionUser || sessionUser.role !== "admin") return;
-
     getBooking(id).then(setBooking).catch((err) => setError(err.message));
   }, [id, sessionUser]);
 
-  if (!sessionUser || sessionUser.role !== "admin") return <Navigate to="/admin/login" replace />;
+  if (!sessionUser || sessionUser.role !== "admin") return <Navigate to="/login" replace />;
 
   async function delayFlight() {
     setMessage("");
@@ -639,83 +651,268 @@ function AdminDisruptionPage({ id }) {
     }
   }
 
-  if (!booking && !error) {
-    return <PageShell><p>Loading booking...</p></PageShell>;
-  }
+  if (!booking && !error) return <PageShell><div className="mx-auto max-w-7xl px-4 py-8">Loading booking...</div></PageShell>;
 
   return (
     <PageShell>
-      <Link className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-amex" to="/admin/bookings">
-        <ArrowLeft size={16} />
-        Back to bookings
-      </Link>
-      <PageTitle icon={AlertTriangle} title="Admin disruption simulator" subtitle="Send flight delay or cancellation events to ATRE." />
-      {booking ? (
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <Panel title="Selected flight" icon={Plane}>
-            <p className="text-lg font-semibold">{booking.flight.airline} {booking.flight.flightNumber}</p>
-            <p className="text-sm text-slate-600">{booking.itinerary.origin} to {booking.itinerary.destination}</p>
-            <div className="mt-4 grid gap-2 text-sm text-slate-700">
-              <p><strong>Booking:</strong> {booking.externalBookingId}</p>
-              <p><strong>Traveler:</strong> {booking.user.name}</p>
-              <p><strong>Departure:</strong> {formatTime(booking.flight.departureTime)}</p>
-            </div>
-          </Panel>
-          <Panel title="Actions" icon={CalendarDays}>
-            <div className="grid gap-3">
-              <button className="btn-primary w-full" type="button" onClick={() => setModal("delay")}>
-                <AlertTriangle size={18} />
-                Delay Flight
-              </button>
-              <button className="btn-danger w-full" type="button" onClick={() => setModal("cancel")}>
-                <AlertTriangle size={18} />
-                Cancel Flight
-              </button>
-            </div>
-          </Panel>
-        </div>
-      ) : null}
-      {message ? <p className="mt-5 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">{message}</p> : null}
-      {error ? <p className="mt-5 rounded border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p> : null}
-      {modal ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4">
-          <div className="w-full max-w-md rounded border border-slate-200 bg-white p-5 shadow-panel">
-            <h2 className="mb-4 text-lg font-semibold">{modal === "delay" ? "Delay Flight" : "Cancel Flight"}</h2>
-            {modal === "delay" ? (
-              <div className="grid gap-4">
-                <Field label="Delay minutes" type="number" value={delayMinutes} onChange={setDelayMinutes} />
-                <Field label="Reason" value={delayReason} onChange={setDelayReason} />
-                <div className="flex gap-3">
-                  <button className="btn-secondary flex-1" type="button" onClick={() => setModal(null)}>Close</button>
-                  <button className="btn-primary flex-1" type="button" onClick={delayFlight}>Submit Delay</button>
-                </div>
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <Link className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-amex" to="/admin/bookings"><ArrowLeft size={16} />Back to bookings</Link>
+        <PageTitle icon={AlertTriangle} title="Admin disruption simulator" subtitle="Send flight delay or cancellation events to ATRE." />
+        {booking?.flight ? (
+          <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+            <Panel title="Selected flight" icon={Plane}>
+              <p className="text-lg font-semibold">{booking.flight.airline} {booking.flight.flightNumber}</p>
+              <p className="text-sm text-slate-600">{booking.flight.origin} to {booking.flight.destination}</p>
+              <div className="mt-4 grid gap-2 text-sm text-slate-700">
+                <p><strong>Booking:</strong> {booking.externalBookingId}</p>
+                <p><strong>Traveler:</strong> {booking.user.name}</p>
+                <p><strong>Departure:</strong> {formatTime(booking.flight.departureTime)}</p>
               </div>
-            ) : (
-              <div className="grid gap-4">
-                <Field label="Reason" value={cancelReason} onChange={setCancelReason} />
-                <div className="flex gap-3">
-                  <button className="btn-secondary flex-1" type="button" onClick={() => setModal(null)}>Close</button>
-                  <button className="btn-danger flex-1" type="button" onClick={cancelFlight}>Submit Cancellation</button>
-                </div>
+            </Panel>
+            <Panel title="Actions" icon={CalendarDays}>
+              <div className="grid gap-3">
+                <button className="btn-primary w-full" type="button" onClick={() => setModal("delay")}><AlertTriangle size={18} />Delay Flight</button>
+                <button className="btn-danger w-full" type="button" onClick={() => setModal("cancel")}><AlertTriangle size={18} />Cancel Flight</button>
               </div>
-            )}
+            </Panel>
           </div>
-        </div>
+        ) : <Alert tone="danger">This booking has no flight, so a flight disruption cannot be sent.</Alert>}
+        {message ? <Alert tone="success">{message}</Alert> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+      </div>
+      {modal ? (
+        <Modal title={modal === "delay" ? "Delay Flight" : "Cancel Flight"} onClose={() => setModal(null)}>
+          {modal === "delay" ? (
+            <div className="grid gap-4">
+              <Field label="Delay minutes" type="number" value={delayMinutes} onChange={setDelayMinutes} />
+              <Field label="Reason" value={delayReason} onChange={setDelayReason} />
+              <button className="btn-primary" type="button" onClick={delayFlight}>Submit Delay</button>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              <Field label="Reason" value={cancelReason} onChange={setCancelReason} />
+              <button className="btn-danger" type="button" onClick={cancelFlight}>Submit Cancellation</button>
+            </div>
+          )}
+        </Modal>
       ) : null}
     </PageShell>
+  );
+}
+
+function InventoryFields({ form, setForm }) {
+  const setDetails = (patch) => setForm({ ...form, details: { ...form.details, ...patch } });
+  return (
+    <>
+      <Field label="Title" value={form.title} onChange={(title) => setForm({ ...form, title })} />
+      <Field label="Subtitle" value={form.subtitle} onChange={(subtitle) => setForm({ ...form, subtitle })} />
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Price" type="number" value={form.price.amount} onChange={(amount) => setForm({ ...form, price: { ...form.price, amount } })} />
+        <Field label="Currency" value={form.price.currency} onChange={(currency) => setForm({ ...form, price: { ...form.price, currency } })} />
+      </div>
+      {form.type === "flight" ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Airline" value={form.details.airline} onChange={(airline) => setDetails({ airline })} />
+            <Field label="Flight number" value={form.details.flightNumber} onChange={(flightNumber) => setDetails({ flightNumber })} />
+            <Field label="Origin" value={form.details.origin} onChange={(origin) => setDetails({ origin })} />
+            <Field label="Destination" value={form.details.destination} onChange={(destination) => setDetails({ destination })} />
+            <Field label="Departure time" type="datetime-local" value={form.details.departureTime} onChange={(departureTime) => setDetails({ departureTime })} />
+            <Field label="Arrival time" type="datetime-local" value={form.details.arrivalTime} onChange={(arrivalTime) => setDetails({ arrivalTime })} />
+            <Field label="Cabin" value={form.details.cabin} onChange={(cabin) => setDetails({ cabin })} />
+            <Field label="Confirmation code" value={form.details.confirmationCode} onChange={(confirmationCode) => setDetails({ confirmationCode })} />
+          </div>
+        </>
+      ) : null}
+      {form.type === "hotel" ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Hotel name" value={form.details.hotelName} onChange={(hotelName) => setDetails({ hotelName })} />
+          <Field label="City" value={form.details.city} onChange={(city) => setDetails({ city })} />
+          <Field label="Check in" type="date" value={form.details.checkIn} onChange={(checkIn) => setDetails({ checkIn })} />
+          <Field label="Check out" type="date" value={form.details.checkOut} onChange={(checkOut) => setDetails({ checkOut })} />
+          <Field label="Confirmation code" value={form.details.confirmationCode} onChange={(confirmationCode) => setDetails({ confirmationCode })} />
+        </div>
+      ) : null}
+      {form.type === "transport" ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Cab type" value={form.details.transportType} onChange={(transportType) => setDetails({ transportType })} />
+          <Field label="Pickup" value={form.details.pickupLocation} onChange={(pickupLocation) => setDetails({ pickupLocation })} />
+          <Field label="Dropoff" value={form.details.dropoffLocation} onChange={(dropoffLocation) => setDetails({ dropoffLocation })} />
+          <Field label="Pickup time" type="datetime-local" value={form.details.pickupTime} onChange={(pickupTime) => setDetails({ pickupTime })} />
+          <Field label="Confirmation code" value={form.details.confirmationCode} onChange={(confirmationCode) => setDetails({ confirmationCode })} />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function blankInventoryForm(type) {
+  const shared = { type, title: "", subtitle: "", price: { amount: 0, currency: "USD" }, details: {} };
+  if (type === "flight") {
+    return { ...shared, details: { airline: "", flightNumber: "", origin: "", destination: "", departureTime: "", arrivalTime: "", cabin: "", confirmationCode: "" } };
+  }
+  if (type === "hotel") {
+    return { ...shared, details: { hotelName: "", city: "", checkIn: "", checkOut: "", confirmationCode: "" } };
+  }
+  return { ...shared, details: { transportType: "", pickupLocation: "", dropoffLocation: "", pickupTime: "", confirmationCode: "" } };
+}
+
+function formToInventory(form) {
+  return {
+    type: form.type,
+    title: form.title,
+    subtitle: form.subtitle,
+    price: { amount: Number(form.price.amount), currency: form.price.currency },
+    details: form.details,
+    active: true
+  };
+}
+
+function normalizeItem(item, itinerary) {
+  const details = item.details || {};
+  const base = { _inventoryId: item._id, status: "booked", price: item.price };
+  if (item.type === "flight") {
+    return {
+      ...base,
+      airline: details.airline || item.title,
+      flightNumber: details.flightNumber || item.title,
+      origin: details.origin || itinerary.origin,
+      destination: details.destination || itinerary.destination,
+      departureTime: details.departureTime,
+      arrivalTime: details.arrivalTime,
+      cabin: details.cabin || itinerary.cabin,
+      confirmationCode: details.confirmationCode || `FL${Date.now()}`
+    };
+  }
+  if (item.type === "hotel") {
+    return {
+      ...base,
+      hotelName: details.hotelName || item.title,
+      city: details.city || itinerary.destination,
+      checkIn: details.checkIn || itinerary.departureDate,
+      checkOut: details.checkOut || itinerary.returnDate || itinerary.departureDate,
+      confirmationCode: details.confirmationCode || `HT${Date.now()}`
+    };
+  }
+  return {
+    ...base,
+    type: details.transportType || item.title,
+    pickupLocation: details.pickupLocation || itinerary.destination,
+    dropoffLocation: details.dropoffLocation || "Hotel",
+    pickupTime: details.pickupTime,
+    confirmationCode: details.confirmationCode || `TX${Date.now()}`
+  };
+}
+
+function describeInventory(item) {
+  const d = item.details || {};
+  if (item.type === "flight") return [`${d.origin || "Origin"} to ${d.destination || "Destination"}`, `${formatTime(d.departureTime)} to ${formatTime(d.arrivalTime)}`, d.cabin || "Cabin not set"];
+  if (item.type === "hotel") return [d.city || "City not set", `${d.checkIn || "Check-in"} to ${d.checkOut || "Check-out"}`, `Code ${d.confirmationCode || "pending"}`];
+  return [`${d.pickupLocation || "Pickup"} to ${d.dropoffLocation || "Dropoff"}`, formatTime(d.pickupTime), d.transportType || "Cab"];
+}
+
+function sectionSubtitle(section) {
+  if (section === "hotel") return "Search hotels by city, dates, rooms, and guests";
+  if (section === "transport") return "Search cabs by pickup, dropoff, time, and passengers";
+  if (section === "villa") return "Villa booking can be added by admin inventory later";
+  if (section === "holiday") return "Holiday packages are not enabled in this demo";
+  if (section === "train") return "Train booking is not enabled in this demo";
+  if (section === "insurance") return "Protection is imported with the completed trip";
+  return "Search flights by route, date, travellers, and cabin";
+}
+
+function SearchSectionFields({ section, form, setForm }) {
+  if (section === "hotel") {
+    return (
+      <div className="grid overflow-hidden rounded-lg border border-slate-200 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_0.8fr]">
+        <BigField label="City or hotel" value={form.destination} onChange={(destination) => setForm({ ...form, destination })} />
+        <BigField label="Check-in" type="date" value={form.departureDate} onChange={(departureDate) => setForm({ ...form, departureDate })} />
+        <BigField label="Check-out" type="date" value={form.returnDate} onChange={(returnDate) => setForm({ ...form, returnDate })} />
+        <BigField label="Rooms" type="number" value={form.rooms || ""} onChange={(rooms) => setForm({ ...form, rooms })} />
+        <BigField label="Guests" type="number" value={form.guests || ""} onChange={(guests) => setForm({ ...form, guests })} />
+      </div>
+    );
+  }
+
+  if (section === "transport") {
+    return (
+      <div className="grid overflow-hidden rounded-lg border border-slate-200 md:grid-cols-[1fr_1fr_0.8fr_0.8fr]">
+        <BigField label="Pickup" value={form.origin} onChange={(origin) => setForm({ ...form, origin })} />
+        <BigField label="Dropoff" value={form.destination} onChange={(destination) => setForm({ ...form, destination })} />
+        <BigField label="Pickup date" type="date" value={form.departureDate} onChange={(departureDate) => setForm({ ...form, departureDate })} />
+        <BigField label="Passengers" type="number" value={form.passengers || ""} onChange={(passengers) => setForm({ ...form, passengers })} />
+      </div>
+    );
+  }
+
+  if (!["flight", "hotel", "transport"].includes(section)) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-6">
+        <p className="font-semibold">{sectionSubtitle(section)}</p>
+        <p className="mt-1 text-sm text-slate-600">Use Flights, Hotels, or Cabs for the current ATRE booking import flow.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid overflow-hidden rounded-lg border border-slate-200 md:grid-cols-[1fr_1fr_0.8fr_0.8fr_0.9fr]">
+      <BigField label="From" value={form.origin} onChange={(origin) => setForm({ ...form, origin })} />
+      <BigField label="To" value={form.destination} onChange={(destination) => setForm({ ...form, destination })} />
+      <BigField label="Departure" type="date" value={form.departureDate} onChange={(departureDate) => setForm({ ...form, departureDate })} />
+      <BigField label="Return" type="date" value={form.returnDate} onChange={(returnDate) => setForm({ ...form, returnDate })} />
+      <BigField label="Cabin Class" value={form.cabin} onChange={(cabin) => setForm({ ...form, cabin })} />
+    </div>
+  );
+}
+
+function BigField({ label, value, onChange, type = "text" }) {
+  return (
+    <label className="grid gap-2 border-b border-r border-slate-200 p-5 md:border-b-0">
+      <span className="text-sm font-semibold text-slate-500">{label}</span>
+      <input className="min-w-0 text-2xl font-bold outline-none md:text-3xl" type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function Field({ label, value, onChange, type = "text" }) {
+  return (
+    <label className="grid gap-2 text-sm font-medium">
+      {label}
+      <input className="input" type={type} value={value || ""} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function FlowHeader({ active }) {
+  const steps = [["flight", "Flight"], ["hotel", "Hotel"], ["transport", "Cab"], ["checkout", "Checkout"]];
+  return (
+    <div className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-4">
+      {steps.map(([key, label]) => <div key={key} className={`rounded border px-3 py-2 text-sm ${key === active ? "border-amex bg-white text-amex" : "border-slate-200 bg-white text-slate-500"}`}>{label}</div>)}
+    </div>
+  );
+}
+
+function SelectableCard({ title, subtitle, details, price, icon: Icon, selected, onSelect }) {
+  return (
+    <article className={`rounded border bg-white p-5 shadow-sm ${selected ? "border-amex ring-2 ring-amex/20" : "border-slate-200"}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-slate-100 text-amex"><Icon size={21} /></span>
+          <div><h3 className="font-semibold">{title}</h3><p className="text-sm text-slate-600">{subtitle}</p></div>
+        </div>
+        <p className="font-semibold">{money(price)}</p>
+      </div>
+      <div className="mt-4 grid gap-2 text-sm text-slate-600">{details.map((detail) => <p key={detail}>{detail}</p>)}</div>
+      <button onClick={onSelect} className={selected ? "btn-secondary mt-5" : "btn-primary mt-5"} type="button">{selected ? <Check size={18} /> : null}{selected ? "Selected" : "Select"}</button>
+    </article>
   );
 }
 
 function PageTitle({ icon: Icon, title, subtitle }) {
   return (
     <div className="mb-6 flex items-center gap-3">
-      <span className="flex h-12 w-12 items-center justify-center rounded bg-white text-amex shadow-sm">
-        <Icon size={23} />
-      </span>
-      <div>
-        <h1 className="text-2xl font-semibold">{title}</h1>
-        <p className="text-slate-600">{subtitle}</p>
-      </div>
+      <span className="flex h-12 w-12 items-center justify-center rounded bg-white text-amex shadow-sm"><Icon size={23} /></span>
+      <div><h1 className="text-2xl font-semibold">{title}</h1><p className="text-slate-600">{subtitle}</p></div>
     </div>
   );
 }
@@ -723,10 +920,7 @@ function PageTitle({ icon: Icon, title, subtitle }) {
 function Panel({ title, icon: Icon, children }) {
   return (
     <section className="rounded border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-center gap-2">
-        <Icon className="text-amex" size={20} />
-        <h2 className="font-semibold">{title}</h2>
-      </div>
+      <div className="mb-4 flex items-center gap-2"><Icon className="text-amex" size={20} /><h2 className="font-semibold">{title}</h2></div>
       {children}
     </section>
   );
@@ -735,11 +929,31 @@ function Panel({ title, icon: Icon, children }) {
 function SummaryItem({ label, value, price }) {
   return (
     <div className="mb-3 flex items-start justify-between gap-3 text-sm">
-      <div>
-        <p className="font-medium">{label}</p>
-        <p className="text-slate-600">{value}</p>
-      </div>
+      <div><p className="font-medium">{label}</p><p className="text-slate-600">{value}</p></div>
       <p className="font-semibold">{money(price)}</p>
+    </div>
+  );
+}
+
+function Alert({ tone, children }) {
+  const classes = tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-700";
+  return <p className={`my-4 rounded border p-3 text-sm font-medium ${classes}`}>{children}</p>;
+}
+
+function EmptyState({ title, message }) {
+  return <div className="rounded border border-slate-200 bg-white p-8 text-center"><p className="font-semibold">{title}</p><p className="mt-1 text-sm text-slate-600">{message}</p></div>;
+}
+
+function Modal({ title, onClose, children }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4">
+      <div className="w-full max-w-md rounded border border-slate-200 bg-white p-5 shadow-panel">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
@@ -748,17 +962,16 @@ export default function App() {
   const path = usePath();
   const confirmationMatch = path.match(/^\/confirmation\/([^/]+)$/);
   const disruptionMatch = path.match(/^\/admin\/disruptions\/([^/]+)$/);
+  const selectMatch = path.match(/^\/select\/(flight|hotel|transport)$/);
 
   if (path === "/") return <HomePage />;
   if (path === "/login") return <AuthPage mode="login" />;
   if (path === "/register") return <AuthPage mode="register" />;
-  if (path === "/admin/login") return <AuthPage mode="admin" />;
-  if (path === "/flights") return <FlightResultsPage />;
-  if (path === "/hotels") return <HotelSelectionPage />;
-  if (path === "/taxis") return <TaxiSelectionPage />;
+  if (selectMatch) return <SelectionPage type={selectMatch[1]} />;
   if (path === "/checkout") return <CheckoutPage />;
   if (confirmationMatch) return <ConfirmationPage id={confirmationMatch[1]} />;
   if (path === "/admin/bookings") return <AdminBookingsPage />;
+  if (path === "/admin/inventory") return <AdminInventoryPage />;
   if (disruptionMatch) return <AdminDisruptionPage id={disruptionMatch[1]} />;
 
   return <Navigate to="/" replace />;

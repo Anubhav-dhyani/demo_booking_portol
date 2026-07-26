@@ -1,12 +1,16 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { connectDb } from "./config/db.js";
 import authRoutes from "./routes/auth.js";
 import bookingRoutes from "./routes/bookings.js";
 import disruptionRoutes from "./routes/disruptions.js";
+import inventoryRoutes from "./routes/inventory.js";
 
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -19,6 +23,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/inventory", inventoryRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/disruptions", disruptionRoutes);
 

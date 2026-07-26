@@ -47,6 +47,22 @@ router.post("/register", async (req, res, next) => {
 router.post("/login", async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    const adminEmail = process.env.ADMIN_EMAIL || "admin@example.com";
+    const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+
+    if (email === adminEmail && password === adminPassword) {
+      const admin = {
+        id: "admin",
+        name: process.env.ADMIN_NAME || "Travel Admin",
+        email: adminEmail,
+        phone: "",
+        role: "admin",
+        externalUserId: "admin"
+      };
+
+      return res.json({ user: admin, token: signToken(admin) });
+    }
+
     const user = await User.findOne({ email: email?.toLowerCase() });
 
     if (!user || !verifyPassword(password || "", user.passwordHash)) {
@@ -58,27 +74,6 @@ router.post("/login", async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
-
-router.post("/admin/login", (req, res) => {
-  const { email, password } = req.body;
-  const adminEmail = process.env.ADMIN_EMAIL || "admin@example.com";
-  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
-
-  if (email !== adminEmail || password !== adminPassword) {
-    return res.status(401).json({ message: "Invalid admin credentials" });
-  }
-
-  const admin = {
-    id: "admin",
-    name: process.env.ADMIN_NAME || "Travel Admin",
-    email: adminEmail,
-    phone: "",
-    role: "admin",
-    externalUserId: "admin"
-  };
-
-  res.json({ user: admin, token: signToken(admin) });
 });
 
 export default router;
