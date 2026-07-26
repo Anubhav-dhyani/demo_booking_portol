@@ -14,7 +14,9 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(data?.message || "Request failed");
+    const error = new Error(data?.message || "Request failed");
+    error.data = data;
+    throw error;
   }
 
   return data;
@@ -91,8 +93,18 @@ export function listBookings() {
   return request("/api/bookings");
 }
 
+export function listMyBookings() {
+  return request("/api/bookings/my");
+}
+
 export function getBooking(id) {
   return request(`/api/bookings/${id}`);
+}
+
+export function retryAtreImport(id) {
+  return request(`/api/bookings/${id}/retry-atre-import`, {
+    method: "POST"
+  });
 }
 
 export function sendFlightDelay(bookingId, delayMinutes, reason) {

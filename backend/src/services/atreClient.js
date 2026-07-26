@@ -1,4 +1,4 @@
-const DEFAULT_ATRE_API_URL = "http://localhost:4000";
+const DEFAULT_ATRE_API_URL = "http://localhost:5003";
 
 function getAtreBaseUrl() {
   return (process.env.ATRE_API_URL || DEFAULT_ATRE_API_URL).replace(/\/$/, "");

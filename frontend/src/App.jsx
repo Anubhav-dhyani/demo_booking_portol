@@ -27,11 +27,13 @@ import {
   deleteInventoryItem,
   getBooking,
   getSessionUser,
+  listMyBookings,
   listAdminInventory,
   listBookings,
   listInventory,
   loginUser,
   registerUser,
+  retryAtreImport,
   saveSession,
   sendFlightCancellation,
   sendFlightDelay,
@@ -141,6 +143,7 @@ function PageShell({ children }) {
           </Link>
           <nav className="flex flex-wrap items-center justify-end gap-2 text-sm font-medium text-slate-600">
             <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/">Book</Link>
+            {user?.role === "user" ? <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/bookings">My Bookings</Link> : null}
             {user?.role === "admin" ? <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/admin/bookings">Bookings</Link> : null}
             {user?.role === "admin" ? <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/admin/inventory">Inventory</Link> : null}
             {user ? (
@@ -454,13 +457,71 @@ function ConfirmationPage({ id }) {
             <div className="mx-auto mt-6 max-w-2xl rounded bg-slate-50 p-4 text-left text-sm text-slate-700">
               <p><strong>Booking:</strong> {booking.externalBookingId}</p>
               <p><strong>ATRE import:</strong> {booking.atreImport.status}</p>
+              {booking.atreImport.status !== "sent" ? <p className="mt-2 text-slate-600">ATRE is not synced yet. Use My Bookings to sync again when ATRE is available.</p> : null}
             </div>
           ) : null}
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link className="btn-secondary" to="/">Book Another Trip</Link>
-            <Link className="btn-primary" to="/admin/bookings">Open Admin</Link>
+            <Link className="btn-primary" to="/bookings">View My Bookings</Link>
           </div>
         </section>
+      </div>
+    </PageShell>
+  );
+}
+
+function MyBookingsPage() {
+  const sessionUser = useSession();
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!sessionUser || sessionUser.role !== "user") return;
+    listMyBookings().then(setBookings).catch((err) => setError(err.message)).finally(() => setLoading(false));
+  }, [sessionUser]);
+
+  if (!sessionUser || sessionUser.role !== "user") return <Navigate to="/login" replace />;
+
+  async function syncBooking(id) {
+    setMessage("");
+    setError("");
+    try {
+      const updated = await retryAtreImport(id);
+      setBookings((current) => current.map((booking) => booking._id === updated._id ? updated : booking));
+      setMessage(updated.atreImport?.status === "sent" ? "ATRE import synced." : "ATRE import is still failing. Try again later.");
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <PageShell>
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <PageTitle icon={BriefcaseBusiness} title="My bookings" subtitle="Trips you booked on this travel platform." />
+        {loading ? <p>Loading bookings...</p> : null}
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+        {message ? <Alert tone={message.includes("synced") ? "success" : "danger"}>{message}</Alert> : null}
+        <div className="grid gap-4">
+          {bookings.map((booking) => (
+            <article key={booking._id} className="rounded border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                <div>
+                  <h2 className="font-semibold">{booking.externalBookingId}</h2>
+                  <p className="text-sm text-slate-600">{booking.itinerary.origin || "Origin"} to {booking.itinerary.destination || "Destination"} · {booking.itinerary.departureDate || "Date pending"}</p>
+                  <p className="mt-1 text-sm text-slate-500">{booking.flight ? `Flight ${booking.flight.flightNumber}` : "No flight"} · {booking.hotel ? booking.hotel.hotelName : "No hotel"} · {booking.transport ? booking.transport.type : "No cab"}</p>
+                  <p className="mt-1 text-sm font-medium text-amex">ATRE import: {booking.atreImport?.status || "pending"}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {booking.atreImport?.status !== "sent" ? <button className="btn-primary" type="button" onClick={() => syncBooking(booking._id)}>Sync ATRE</button> : null}
+                  <Link className="btn-secondary" to={`/confirmation/${booking._id}`}>View Details</Link>
+                </div>
+              </div>
+            </article>
+          ))}
+          {!loading && bookings.length === 0 ? <EmptyState title="No bookings yet" message="Search and checkout to create your first booking." /> : null}
+        </div>
       </div>
     </PageShell>
   );
@@ -471,6 +532,7 @@ function AdminBookingsPage() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!sessionUser || sessionUser.role !== "admin") return;
@@ -478,6 +540,18 @@ function AdminBookingsPage() {
   }, [sessionUser]);
 
   if (!sessionUser || sessionUser.role !== "admin") return <Navigate to="/login" replace />;
+
+  async function syncBooking(id) {
+    setMessage("");
+    setError("");
+    try {
+      const updated = await retryAtreImport(id);
+      setBookings((current) => current.map((booking) => booking._id === updated._id ? updated : booking));
+      setMessage(updated.atreImport?.status === "sent" ? "ATRE import synced." : "ATRE import is still failing. Try again later.");
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   return (
     <PageShell>
@@ -488,6 +562,7 @@ function AdminBookingsPage() {
         </div>
         {loading ? <p>Loading bookings...</p> : null}
         {error ? <Alert tone="danger">{error}</Alert> : null}
+        {message ? <Alert tone={message.includes("synced") ? "success" : "danger"}>{message}</Alert> : null}
         <div className="grid gap-4">
           {bookings.map((booking) => (
             <article key={booking._id} className="rounded border border-slate-200 bg-white p-5 shadow-sm">
@@ -497,11 +572,14 @@ function AdminBookingsPage() {
                   <p className="text-sm text-slate-600">{booking.user.name} · {booking.itinerary.origin} to {booking.itinerary.destination}</p>
                   <p className="mt-1 text-sm text-slate-500">{booking.flight ? `Flight ${booking.flight.flightNumber}` : "No flight"} · {booking.hotel ? booking.hotel.hotelName : "No hotel"} · {booking.transport ? booking.transport.type : "No cab"}</p>
                 </div>
-                {booking.flight ? (
-                  <Link className="btn-primary" to={`/admin/disruptions/${booking._id}`}><AlertTriangle size={18} />Simulate Disruption</Link>
-                ) : (
-                  <span className="rounded bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-500">No flight to disrupt</span>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {booking.atreImport?.status !== "sent" ? <button className="btn-secondary" type="button" onClick={() => syncBooking(booking._id)}>Sync ATRE</button> : null}
+                  {booking.flight ? (
+                    <Link className="btn-primary" to={`/admin/disruptions/${booking._id}`}><AlertTriangle size={18} />Simulate Disruption</Link>
+                  ) : (
+                    <span className="rounded bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-500">No flight to disrupt</span>
+                  )}
+                </div>
               </div>
             </article>
           ))}
@@ -969,6 +1047,7 @@ export default function App() {
   if (path === "/register") return <AuthPage mode="register" />;
   if (selectMatch) return <SelectionPage type={selectMatch[1]} />;
   if (path === "/checkout") return <CheckoutPage />;
+  if (path === "/bookings") return <MyBookingsPage />;
   if (confirmationMatch) return <ConfirmationPage id={confirmationMatch[1]} />;
   if (path === "/admin/bookings") return <AdminBookingsPage />;
   if (path === "/admin/inventory") return <AdminInventoryPage />;

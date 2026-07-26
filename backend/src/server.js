@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { connectDb } from "./config/db.js";
 import authRoutes from "./routes/auth.js";
+import atreSyncRoutes from "./routes/atreSync.js";
 import bookingRoutes from "./routes/bookings.js";
 import disruptionRoutes from "./routes/disruptions.js";
 import inventoryRoutes from "./routes/inventory.js";
@@ -23,6 +24,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/atre", atreSyncRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/disruptions", disruptionRoutes);

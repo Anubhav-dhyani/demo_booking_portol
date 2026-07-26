@@ -16,7 +16,7 @@ Backend `.env`:
 ```bash
 PORT=5000
 MONGODB_URI=mongodb://127.0.0.1:27017/demo-travel-booking
-ATRE_API_URL=http://localhost:4000
+ATRE_API_URL=http://localhost:5003
 AUTH_TOKEN_SECRET=change-this-local-secret
 ADMIN_NAME=Travel Admin
 ADMIN_EMAIL=admin@example.com
@@ -52,3 +52,4 @@ The booking platform calls:
 - `POST {ATRE_API_URL}/api/import-booking`
 - `POST {ATRE_API_URL}/api/disruptions/flight-delay`
 - `POST {ATRE_API_URL}/api/disruptions/flight-cancellation`
+- `POST /api/atre/bookings/sync`
