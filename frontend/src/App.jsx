@@ -137,34 +137,45 @@ function useBookingDraft() {
 
 function PageShell({ children }) {
   const user = useSession();
+  const path = usePath();
 
   function logout() {
     clearSession();
     goTo("/");
   }
 
+  const navLinkClass = (target) =>
+    `rounded-full px-4 py-2 text-sm font700 transition ${
+      path === target ? "bg-blue-50 text-amex" : "text-slate-600 hover:bg-slate-100 hover:text-ink"
+    }`;
+
   return (
-    <div className="min-h-screen bg-[#eef4fb] text-ink">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-          <Link to="/" className="flex items-center gap-3 font-semibold">
-            <span className="flex h-10 w-10 items-center justify-center rounded bg-amex text-white"><Plane size={20} /></span>
-            Demo Travel
+    <div className="min-h-screen bg-travel-surface text-ink">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
+          <Link to="/" className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-amex text-white shadow-blue">
+              <Plane size={21} />
+            </span>
+            <span>
+              <span className="block text-lg font800 leading-5 text-ink">TripPilot</span>
+              <span className="hidden text-xs font700 uppercase text-slate-500 sm:block">Official booking platform</span>
+            </span>
           </Link>
-          <nav className="flex flex-wrap items-center justify-end gap-2 text-sm font-medium text-slate-600">
-            <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/">Book</Link>
-            {user?.role === "user" ? <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/bookings">My Bookings</Link> : null}
-            {user?.role === "admin" ? <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/admin/bookings">Bookings</Link> : null}
-            {user?.role === "admin" ? <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/admin/inventory">Inventory</Link> : null}
+          <nav className="flex flex-wrap items-center justify-end gap-2">
+            <Link className={navLinkClass("/")} to="/">Book</Link>
+            {user?.role === "user" ? <Link className={navLinkClass("/bookings")} to="/bookings">My Trips</Link> : null}
+            {user?.role === "admin" ? <Link className={navLinkClass("/admin/bookings")} to="/admin/bookings">Bookings</Link> : null}
+            {user?.role === "admin" ? <Link className={navLinkClass("/admin/inventory")} to="/admin/inventory">Inventory</Link> : null}
             {user ? (
               <>
-                <span className="hidden rounded bg-slate-100 px-3 py-2 text-slate-700 md:inline">{user.name}</span>
-                <button className="rounded px-3 py-2 hover:bg-slate-100" type="button" onClick={logout}><LogOut size={17} /></button>
+                <span className="hidden rounded-full bg-slate-100 px-4 py-2 text-sm font700 text-slate-700 md:inline">{user.name}</span>
+                <button className="icon-btn" type="button" onClick={logout} title="Logout"><LogOut size={17} /></button>
               </>
             ) : (
               <>
-                <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/login">Login</Link>
-                <Link className="rounded px-3 py-2 hover:bg-slate-100" to="/register">Register</Link>
+                <Link className={navLinkClass("/login")} to="/login">Login</Link>
+                <Link className="btn-primary" to="/register">Register</Link>
               </>
             )}
           </nav>
@@ -206,8 +217,8 @@ function AuthPage({ mode }) {
 
   return (
     <PageShell>
-      <div className="mx-auto max-w-7xl px-4 py-10">
-        <section className="mx-auto max-w-md rounded border border-slate-200 bg-white p-6 shadow-panel">
+      <div className="mx-auto max-w-7xl px-4 py-12">
+        <section className="mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-7 shadow-panel">
           <div className="mb-5 flex items-center gap-2">
             <LogIn className="text-amex" />
             <h1 className="text-2xl font-semibold">{isRegister ? "Create Account" : "Login"}</h1>
@@ -261,45 +272,64 @@ function HomePage() {
 
   return (
     <PageShell>
-      <section className="relative min-h-[calc(100vh-73px)] bg-[linear-gradient(rgba(12,18,32,0.48),rgba(12,18,32,0.58)),url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1800&q=80')] bg-cover bg-center px-4 py-12">
+      <section className="relative overflow-hidden bg-[linear-gradient(180deg,rgba(8,43,91,0.88),rgba(4,79,161,0.78)_48%,rgba(245,247,251,1)_48%),url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=1800&q=80')] bg-cover bg-center px-4 pb-16 pt-10">
         <div className="mx-auto max-w-7xl">
-          <div className="mb-6 max-w-2xl text-white">
-            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.16em]">External booking website</p>
-            <h1 className="text-4xl font-semibold leading-tight md:text-5xl">Book only what your trip needs.</h1>
+          <div className="mb-8 flex flex-col justify-between gap-6 text-white md:flex-row md:items-end">
+            <div className="max-w-2xl">
+              <p className="mb-3 text-sm font800 uppercase text-sky-100">Flights, hotels and cabs in one booking</p>
+              <h1 className="text-4xl font800 leading-tight md:text-6xl">Book smarter trips with instant protection.</h1>
+            </div>
+            <div className="grid max-w-sm gap-3 rounded-lg border border-white/20 bg-white/10 p-4 text-sm font700 backdrop-blur">
+              <span className="flex items-center gap-2"><ShieldCheck size={18} /> Verified booking flow</span>
+              <span className="flex items-center gap-2"><CreditCard size={18} /> Secure demo checkout</span>
+            </div>
           </div>
 
-          <form onSubmit={submit} className="relative rounded-lg bg-white p-5 shadow-panel">
-            <div className="-mt-14 mb-6 grid grid-cols-3 gap-2 rounded-lg bg-white p-3 shadow-panel">
+          <form onSubmit={submit} className="relative rounded-lg border border-slate-200 bg-white p-4 shadow-panel md:p-6">
+            <div className="-mt-12 mb-6 grid grid-cols-3 gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-panel md:w-[520px]">
               {categories.map(([key, Icon, label]) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setActiveSection(key)}
-                  className={`relative grid place-items-center gap-2 rounded p-3 text-center text-sm font-semibold transition ${activeSection === key ? "bg-blue-50 text-amex" : "text-slate-600 hover:bg-slate-50"}`}
+                  className={`relative grid place-items-center gap-2 rounded-md p-4 text-center text-sm font800 transition ${activeSection === key ? "bg-blue-50 text-amex" : "text-slate-600 hover:bg-slate-50"}`}
                 >
                   <Icon size={30} />
                   {label}
-                  {activeSection === key ? <span className="absolute inset-x-5 -bottom-3 h-1 rounded-full bg-amex" /> : null}
+                  {activeSection === key ? <span className="absolute inset-x-6 -bottom-2 h-1 rounded-full bg-amex" /> : null}
                 </button>
               ))}
             </div>
 
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm font-semibold">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm font800">
               <div className="flex items-center gap-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-amex"><ActiveIcon size={18} /></span>
                 <span>{activeLabel}</span>
               </div>
-              <span className="text-slate-600">{sectionSubtitle(activeSection)}</span>
+              <span className="text-slate-500">{sectionSubtitle(activeSection)}</span>
             </div>
 
             <SearchSectionFields section={activeSection} form={form} setForm={setForm} />
             {error ? <Alert tone="danger">{error}</Alert> : null}
 
-            <button className="absolute -bottom-8 left-1/2 inline-flex w-64 -translate-x-1/2 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-blue-700 px-6 py-4 text-2xl font-bold text-white shadow-panel" type="submit">
+            <button className="absolute -bottom-8 left-1/2 inline-flex w-64 -translate-x-1/2 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-500 to-amex px-6 py-4 text-xl font800 text-white shadow-blue transition hover:-translate-x-1/2 hover:-translate-y-0.5" type="submit">
               <Search size={24} />
-              SEARCH
+              Search
             </button>
           </form>
+
+          <div className="mt-16 grid gap-4 md:grid-cols-3">
+            {[
+              ["Flexible inventory", "Flights, hotels and cabs stay in one clean booking path."],
+              ["Fast checkout", "Traveler and payment details stay focused and easy to scan."],
+              ["Admin ready", "Provider mode, inventory and disruption controls share the same UI system."]
+            ].map(([title, text]) => (
+              <article key={title} className="rounded-lg border border-slate-200 bg-white p-5 shadow-card">
+                <h2 className="font800">{title}</h2>
+                <p className="mt-1 text-sm text-slate-600">{text}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
     </PageShell>
@@ -1011,7 +1041,7 @@ function missingSearchFields(section, form) {
 function SearchSectionFields({ section, form, setForm }) {
   if (section === "hotel") {
     return (
-      <div className="grid overflow-hidden rounded-lg border border-slate-200 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_0.8fr]">
+      <div className="search-grid md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_0.8fr]">
         <BigField label="City or hotel" value={form.destination} onChange={(destination) => setForm({ ...form, destination })} />
         <BigField label="Check-in" type="date" value={form.departureDate} onChange={(departureDate) => setForm({ ...form, departureDate })} />
         <BigField label="Check-out" type="date" value={form.returnDate} onChange={(returnDate) => setForm({ ...form, returnDate })} />
@@ -1023,7 +1053,7 @@ function SearchSectionFields({ section, form, setForm }) {
 
   if (section === "transport") {
     return (
-      <div className="grid overflow-hidden rounded-lg border border-slate-200 md:grid-cols-[1fr_1fr_0.8fr_0.8fr]">
+      <div className="search-grid md:grid-cols-[1fr_1fr_0.8fr_0.8fr]">
         <BigField label="Pickup" value={form.origin} onChange={(origin) => setForm({ ...form, origin })} />
         <BigField label="Dropoff" value={form.destination} onChange={(destination) => setForm({ ...form, destination })} />
         <BigField label="Pickup date" type="date" value={form.departureDate} onChange={(departureDate) => setForm({ ...form, departureDate })} />
@@ -1042,7 +1072,7 @@ function SearchSectionFields({ section, form, setForm }) {
   }
 
   return (
-    <div className="grid overflow-hidden rounded-lg border border-slate-200 md:grid-cols-[1fr_1fr_0.8fr_0.8fr_0.9fr]">
+    <div className="search-grid md:grid-cols-[1fr_1fr_0.8fr_0.8fr_0.9fr]">
       <BigField label="From city or code" value={form.origin} onChange={(origin) => setForm({ ...form, origin })} />
       <BigField label="To city or code" value={form.destination} onChange={(destination) => setForm({ ...form, destination })} />
       <BigField label="Departure" type="date" value={form.departureDate} onChange={(departureDate) => setForm({ ...form, departureDate })} />
@@ -1054,16 +1084,16 @@ function SearchSectionFields({ section, form, setForm }) {
 
 function BigField({ label, value, onChange, type = "text" }) {
   return (
-    <label className="grid gap-2 border-b border-r border-slate-200 p-5 md:border-b-0">
-      <span className="text-sm font-semibold text-slate-500">{label}</span>
-      <input className="min-w-0 text-2xl font-bold outline-none md:text-3xl" type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+    <label className="grid min-h-[112px] gap-2 border-b border-r border-slate-200 bg-white p-5 transition hover:bg-sky-50/40 md:border-b-0">
+      <span className="text-xs font800 uppercase text-slate-500">{label}</span>
+      <input className="min-w-0 bg-transparent text-xl font800 text-ink outline-none placeholder:text-slate-300 md:text-2xl" type={type} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
 
 function Field({ label, value, onChange, type = "text" }) {
   return (
-    <label className="grid gap-2 text-sm font-medium">
+    <label className="grid gap-2 text-sm font700 text-slate-700">
       {label}
       <input className="input" type={type} value={value || ""} onChange={(event) => onChange(event.target.value)} />
     </label>
@@ -1073,23 +1103,27 @@ function Field({ label, value, onChange, type = "text" }) {
 function FlowHeader({ active }) {
   const steps = [["flight", "Flight"], ["hotel", "Hotel"], ["transport", "Cab"], ["checkout", "Checkout"]];
   return (
-    <div className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-4">
-      {steps.map(([key, label]) => <div key={key} className={`rounded border px-3 py-2 text-sm ${key === active ? "border-amex bg-white text-amex" : "border-slate-200 bg-white text-slate-500"}`}>{label}</div>)}
+    <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4">
+      {steps.map(([key, label], index) => (
+        <div key={key} className={`rounded-lg border px-4 py-3 text-sm font800 shadow-card ${key === active ? "border-amex bg-blue-50 text-amex" : "border-slate-200 bg-white text-slate-500"}`}>
+          <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs">{index + 1}</span>{label}
+        </div>
+      ))}
     </div>
   );
 }
 
 function SelectableCard({ title, subtitle, details, price, icon: Icon, selected, onSelect }) {
   return (
-    <article className={`rounded border bg-white p-5 shadow-sm ${selected ? "border-amex ring-2 ring-amex/20" : "border-slate-200"}`}>
+    <article className={`rounded-lg border bg-white p-5 shadow-card transition hover:-translate-y-1 hover:shadow-panel ${selected ? "border-amex ring-2 ring-amex/20" : "border-slate-200"}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-slate-100 text-amex"><Icon size={21} /></span>
-          <div><h3 className="font-semibold">{title}</h3><p className="text-sm text-slate-600">{subtitle}</p></div>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-amex"><Icon size={21} /></span>
+          <div><h3 className="font800">{title}</h3><p className="text-sm text-slate-600">{subtitle}</p></div>
         </div>
-        <p className="font-semibold">{money(price)}</p>
+        <p className="text-right font800 text-amex">{money(price)}</p>
       </div>
-      <div className="mt-4 grid gap-2 text-sm text-slate-600">{details.map((detail) => <p key={detail}>{detail}</p>)}</div>
+      <div className="mt-4 grid gap-2 text-sm text-slate-600">{details.map((detail) => <p className="rounded-md bg-slate-50 px-3 py-2" key={detail}>{detail}</p>)}</div>
       <button onClick={onSelect} className={selected ? "btn-secondary mt-5" : "btn-primary mt-5"} type="button">{selected ? <Check size={18} /> : null}{selected ? "Selected" : "Select"}</button>
     </article>
   );
@@ -1098,16 +1132,16 @@ function SelectableCard({ title, subtitle, details, price, icon: Icon, selected,
 function PageTitle({ icon: Icon, title, subtitle }) {
   return (
     <div className="mb-6 flex items-center gap-3">
-      <span className="flex h-12 w-12 items-center justify-center rounded bg-white text-amex shadow-sm"><Icon size={23} /></span>
-      <div><h1 className="text-2xl font-semibold">{title}</h1><p className="text-slate-600">{subtitle}</p></div>
+      <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-amex shadow-card"><Icon size={23} /></span>
+      <div><h1 className="text-2xl font800">{title}</h1><p className="text-slate-600">{subtitle}</p></div>
     </div>
   );
 }
 
 function Panel({ title, icon: Icon, children }) {
   return (
-    <section className="rounded border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-center gap-2"><Icon className="text-amex" size={20} /><h2 className="font-semibold">{title}</h2></div>
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-card">
+      <div className="mb-4 flex items-center gap-2"><Icon className="text-amex" size={20} /><h2 className="font800">{title}</h2></div>
       {children}
     </section>
   );
@@ -1124,19 +1158,19 @@ function SummaryItem({ label, value, price }) {
 
 function Alert({ tone, children }) {
   const classes = tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-700";
-  return <p className={`my-4 rounded border p-3 text-sm font-medium ${classes}`}>{children}</p>;
+  return <p className={`my-4 rounded-lg border p-3 text-sm font700 ${classes}`}>{children}</p>;
 }
 
 function EmptyState({ title, message }) {
-  return <div className="rounded border border-slate-200 bg-white p-8 text-center"><p className="font-semibold">{title}</p><p className="mt-1 text-sm text-slate-600">{message}</p></div>;
+  return <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-card"><p className="font800">{title}</p><p className="mt-1 text-sm text-slate-600">{message}</p></div>;
 }
 
 function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4">
-      <div className="w-full max-w-md rounded border border-slate-200 bg-white p-5 shadow-panel">
+      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-panel">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">{title}</h2>
+          <h2 className="text-lg font800">{title}</h2>
           <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
         </div>
         {children}
